@@ -1,0 +1,84 @@
+---
+import FormattedDate from "../FormattedDate.astro";
+import IconAction from "./IconAction.astro";
+import { getLocalizedPagePath, type SitePage } from "../../lib/blog";
+import { getLanguageCatalog, getUiTranslations } from "../../lib/i18n";
+
+interface Props {
+	pages: SitePage[];
+	canUpdate: boolean;
+	canDelete: boolean;
+	emptyTitle?: string;
+	emptyDescription?: string;
+}
+
+const { pages, canUpdate, canDelete, emptyTitle, emptyDescription } = Astro.props;
+const { t, language } = getUiTranslations(Astro);
+const catalog = getLanguageCatalog(Astro.locals);
+---
+
+{
+	pages.length === 0 ? (
+		<div class="admin-state-surface">
+			<h2 class="h5 mb-2">{emptyTitle ?? t("messages.noPagesYet")}</h2>
+			<p class="mb-0 admin-muted">{emptyDescription ?? t("messages.noPagesHelp")}</p>
+		</div>
+	) : (
+		<div class="admin-table-surface table-responsive">
+			<table class="table table-sm table-hover align-middle mb-0">
+				<thead>
+					<tr>
+						<th>{t("labels.title")}</th>
+						<th>{t("labels.status")}</th>
+						<th>{t("labels.updated")}</th>
+						<th>{t("labels.slug")}</th>
+						<th>{t("labels.action")}</th>
+					</tr>
+				</thead>
+				<tbody>
+					{
+						pages.map((page) => (
+							<tr>
+								<td>
+									<div class="d-flex flex-column gap-1">
+										<strong>{page.title}</strong>
+										<span class="text-muted small">{page.description}</span>
+									</div>
+								</td>
+								<td>
+									<span class={`badge text-uppercase ${page.status === "published" ? "bg-success" : "bg-secondary"}`}>
+										{t(`status.${page.status}`, page.status)}
+									</span>
+								</td>
+								<td>
+									<FormattedDate date={page.updatedAt} />
+								</td>
+								<td>
+									<code>{page.slug}</code>
+								</td>
+								<td class="admin-action-cell">
+									<div class="admin-action-group">
+										{canUpdate && (
+											<IconAction href={`/admin/pages/${page.id}/edit`} icon="edit" label={t("actions.edit")} variant="btn-outline-primary" />
+										)}
+										<IconAction
+											href={getLocalizedPagePath(page.slug, language, catalog)}
+											icon="view"
+											label={t("actions.view")}
+										/>
+										{canDelete && (
+											<form class="d-inline" method="post" action="/api/admin/pages/delete">
+												<input type="hidden" name="id" value={page.id} />
+												<IconAction type="submit" icon="delete" label={t("actions.delete")} variant="btn-outline-danger" />
+											</form>
+										)}
+									</div>
+								</td>
+							</tr>
+						))
+					}
+				</tbody>
+			</table>
+		</div>
+	)
+}

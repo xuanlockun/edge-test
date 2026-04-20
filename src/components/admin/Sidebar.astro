@@ -1,0 +1,185 @@
+---
+import { getVisibleAdminNavItems } from "../../lib/rbac/policies";
+import type { AdminSession } from "../../lib/auth/types";
+import { getUiTranslations } from "../../lib/i18n";
+
+interface Props {
+	session: AdminSession | null;
+}
+
+const { session } = Astro.props;
+const pathname = Astro.url.pathname;
+const links = getVisibleAdminNavItems(session);
+const { t, localizeAdminHref } = getUiTranslations(Astro);
+
+const navIconMap: Record<string, string> = {
+	"nav.posts": `
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+			<rect x="4" y="5" width="16" height="14" rx="2" />
+			<line x1="8" y1="9" x2="16" y2="9" />
+			<line x1="8" y1="13" x2="16" y2="13" />
+			<line x1="8" y1="17" x2="12" y2="17" />
+		</svg>
+	`,
+	"nav.pages": `
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+			<rect x="5" y="4" width="14" height="16" rx="2" />
+			<line x1="8" y1="8" x2="16" y2="8" />
+			<line x1="8" y1="12" x2="16" y2="12" />
+			<line x1="8" y1="16" x2="14" y2="16" />
+		</svg>
+	`,
+	"nav.banners": `
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+			<rect x="4" y="6" width="16" height="12" rx="2" />
+			<path d="M8 10h8" />
+			<path d="M8 14h5" />
+		</svg>
+	`,
+	"nav.contactForms": `
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+			<rect x="4" y="5" width="16" height="14" rx="2" />
+			<path d="M8 9h8" />
+			<path d="M8 13h6" />
+			<path d="M8 17h4" />
+		</svg>
+	`,
+	"nav.media": `
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+			<rect x="4" y="5" width="16" height="14" rx="2" />
+			<path d="M8 14l2.5-3 2 2 2-3 3.5 4" />
+			<circle cx="9" cy="9" r="1.25" />
+		</svg>
+	`,
+	"nav.backup": `
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M12 3v10" />
+			<path d="M8 9l4 4 4-4" />
+			<path d="M5 14.5V19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4.5" />
+		</svg>
+	`,
+	"nav.footer": `
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+			<rect x="4" y="5" width="16" height="14" rx="2" />
+			<path d="M7 9h10" />
+			<path d="M7 13h6" />
+			<path d="M7 17h4" />
+		</svg>
+	`,
+	"nav.navbar": `
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M4 7h16" />
+			<path d="M4 12h10" />
+			<path d="M4 17h13" />
+		</svg>
+	`,
+	"nav.settings": `
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+			<circle cx="12" cy="12" r="3" />
+			<path d="M4.8 12h2.4" />
+			<path d="M17.7 12h2.4" />
+			<path d="M12 4.8v2.4" />
+			<path d="M12 17.7v2.4" />
+		</svg>
+	`,
+	"nav.users": `
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+			<circle cx="12" cy="8" r="3" />
+			<path d="M5 20c0-3.866 3.134-7 7-7s7 3.134 7 7" />
+			<path d="M4 20c0-2.21 1.79-4 4-4h0c2.21 0 4 1.79 4 4" />
+			<path d="M16 20c0-2.21 1.79-4 4-4" />
+		</svg>
+	`,
+	"nav.roles": `
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M12 3l7 4v5c0 3.5-2.3 7-7 8-4.7-1-7-4.5-7-8V7z" />
+			<path d="M9 10h6" />
+			<path d="M9 14h6" />
+		</svg>
+	`,
+	"nav.languages": `
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+			<circle cx="12" cy="12" r="8" />
+			<path d="M4 12h16" />
+			<path d="M12 4a15 15 0 0 1 0 16" />
+			<path d="M12 4a15 15 0 0 0 0 16" />
+		</svg>
+	`,
+	"default": `
+		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+			<circle cx="12" cy="12" r="4" />
+			<path d="M4 12h4" />
+			<path d="M16 12h4" />
+		</svg>
+	`,
+};
+
+const navIconHtml = (key: string) => navIconMap[key] ?? navIconMap["default"];
+const sectionConfig = [
+	{ title: null, labelKeys: ["nav.dashboard", "nav.posts", "nav.pages", "nav.media", "nav.banners", "nav.contactForms"] },
+	{ title: "Design", labelKeys: ["nav.template"] },
+	{ title: "Management", labelKeys: ["nav.users", "nav.roles"] },
+	{ title: "Settings", labelKeys: ["nav.backup", "nav.settings", "nav.languages"] },
+];
+
+const sections = sectionConfig
+	.map((section) => ({
+		title: section.title,
+		links: links.filter((link) => section.labelKeys.includes(link.labelKey)),
+	}))
+	.filter((section) => section.links.length > 0);
+
+function isActiveLink(href: string, currentPath: string): boolean {
+	if (href === "/admin") {
+		return currentPath === "/admin" || currentPath === "/admin/";
+	}
+
+	return currentPath === href || currentPath.startsWith(`${href}/`);
+}
+
+---
+
+<nav aria-label="Admin navigation" class="admin-sidebar-nav d-flex flex-column h-100">
+	<header class="admin-sidebar-header">
+		<a href={localizeAdminHref("/admin")} class="admin-sidebar-brand text-decoration-none">
+			<span class="admin-sidebar-mark" aria-hidden="true">
+				<span class="admin-sidebar-mark-dash"></span>
+			</span>
+			<div class="admin-sidebar-brand-copy">
+				<p class="mb-0 fw-semibold text-white">{t("app.brand")}</p>
+				<small class="text-uppercase letter-spacing-wide">Admin</small>
+			</div>
+		</a>
+	</header>
+	<div class="admin-sidebar-body overflow-auto">
+		{
+			sections.map((section) => (
+				<section key={section.title} class="admin-sidebar-section">
+					{section.title && <p class="text-uppercase mb-2 admin-sidebar-section-label">{section.title}</p>}
+					<div class="nav nav-pills flex-column admin-sidebar-links">
+						{
+							section.links.map((link) => (
+								<a
+									role="menuitem"
+									aria-current={isActiveLink(link.href, pathname) ? "page" : undefined}
+									class:list={["nav-link", "w-100 text-start", isActiveLink(link.href, pathname) && "active"]}
+									href={localizeAdminHref(link.href)}
+									data-admin-sidebar-link
+								>
+									<span class="d-inline-flex align-items-center justify-content-center flex-shrink-0 admin-sidebar-icon-wrap">
+										<span aria-hidden="true" set:html={navIconHtml(link.labelKey)}></span>
+									</span>
+									<span>{t(link.labelKey)}</span>
+								</a>
+							))
+						}
+					</div>
+				</section>
+			))
+		}
+	</div>
+	<footer class="admin-sidebar-footer">
+		<p class="mb-0 small text-uppercase letter-spacing-wide">{t("app.brand")}</p>
+		<small class="text-muted">Admin navigation</small>
+	</footer>
+</nav>

@@ -1,0 +1,430 @@
+---
+import type { AdminPostDetail } from "../../lib/blog";
+import { getSupportedLanguages } from "../../lib/blog";
+import CreateSubmit from "./CreateSubmit.astro";
+import { getLanguageCatalog, getUiTranslations, localizeAdminHref } from "../../lib/i18n";
+
+interface Props {
+	mode: "create" | "edit";
+	action: string;
+	post?: AdminPostDetail | null;
+	canSubmit: boolean;
+	backHref?: string;
+	loadError?: string;
+}
+
+const {
+	mode,
+	action,
+	post = null,
+	canSubmit,
+	backHref = "/admin/posts",
+	loadError = "",
+} = Astro.props;
+
+const { t, language } = getUiTranslations(Astro);
+const catalog = getLanguageCatalog(Astro.locals);
+const def = catalog.defaultLanguageCode;
+const submitLabel = mode === "edit" ? t("actions.saveChanges") : t("actions.createPost");
+const languages = getSupportedLanguages(catalog);
+const initialLanguage = post?.requestedLanguage ?? language;
+const slugTranslations = {
+	[def]: "",
+	...(post?.slugTranslations ?? {}),
+};
+const titleTranslations = {
+	[def]: "",
+	...(post?.titleTranslations ?? {}),
+};
+const descriptionTranslations = {
+	[def]: "",
+	...(post?.descriptionTranslations ?? {}),
+};
+const contentTranslations = {
+	[def]: "# New post",
+	...(post?.contentTranslations ?? {}),
+};
+const heroImage = post?.heroImage ?? "";
+const status = post?.status ?? "draft";
+const formatDateTimeLocal = (value: Date | string) => {
+	const date = value instanceof Date ? value : new Date(value);
+	const offset = date.getTimezoneOffset();
+	const localTime = new Date(date.getTime() - offset * 60_000);
+	return localTime.toISOString().slice(0, 16);
+};
+const pubDateValue = post?.pubDate ? formatDateTimeLocal(post.pubDate) : formatDateTimeLocal(new Date());
+const isDisabled = Boolean(loadError) || !canSubmit;
+const backIcon = `
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+		<path d="M14 6l-6 6 6 6" />
+		<path d="M20 12H8" />
+	</svg>
+`;
+---
+
+<div class="admin-surface-header">
+	<button class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2" type="button" data-admin-back={localizeAdminHref(backHref, language)}>
+		<span aria-hidden="true" set:html={backIcon}></span>
+		{t("actions.back")}
+	</button>
+	{!canSubmit && <p class="admin-inline-muted mb-0">{t("messages.cannotSaveForm")}</p>}
+</div>
+
+{loadError && <p class="admin-notice admin-notice-error">{loadError}</p>}
+
+<form class="admin-form-shell" method="post" action={action}>
+	{mode === "edit" && post && <input type="hidden" name="id" value={post.id} />}
+	<div class="admin-form-surface">
+		<div class="admin-form-grid">
+			<label>
+				<span>{t("labels.heroImageUrl")}</span>
+				<input class="form-control" name="heroImage" value={heroImage} placeholder="/blog-placeholder-1.jpg" disabled={isDisabled} />
+			</label>
+			<label>
+				<span>{t("labels.status")}</span>
+				<select class="form-select" name="status" disabled={isDisabled}>
+					<option value="published" selected={status === "published"}>{t("status.published")}</option>
+					<option value="draft" selected={status === "draft"}>{t("status.draft")}</option>
+				</select>
+			</label>
+			<label>
+				<span>{t("labels.publishDate")}</span>
+				<input class="form-control" type="datetime-local" name="pubDate" value={pubDateValue} disabled={isDisabled} />
+			</label>
+		</div>
+	</div>
+
+	<div
+		class="admin-form-section localized-editor"
+		data-localized-editor
+		data-active-language={initialLanguage}
+		data-default-language={def}
+	>
+		<div class="localized-editor-header">
+			<div>
+				<h2>{t("headings.localizedContent")}</h2>
+				<p class="admin-inline-muted mb-0">{t("messages.localizedPostHelp")}</p>
+				<p class="admin-inline-muted mb-0">
+					Use <code>::: columns</code> blocks with <code>::: column</code> to build multi-column layouts inside Markdown.
+				</p>
+			</div>
+			<div class="nav nav-pills localized-editor-tabs" role="tablist" aria-label={t("labels.language")}>
+				{
+					languages.map((language) => (
+						<button
+							type="button"
+						class:list={["nav-link localized-editor-tab", initialLanguage === language.code && "active"]}
+						data-language-tab={language.code}
+						role="tab"
+						aria-selected={initialLanguage === language.code ? "true" : "false"}
+						disabled={isDisabled}
+					>
+							{language.code.toUpperCase()}
+						</button>
+					))
+				}
+			</div>
+		</div>
+
+		<input type="hidden" name="slug" data-slug-translations value={JSON.stringify(slugTranslations)} />
+		<input type="hidden" name="title" data-title-translations value={JSON.stringify(titleTranslations)} />
+		<input type="hidden" name="description" data-description-translations value={JSON.stringify(descriptionTranslations)} />
+		<input type="hidden" name="content" data-content-translations value={JSON.stringify(contentTranslations)} />
+
+		{
+			languages.map((language) => (
+				<section
+					class:list={["localized-editor-panel", initialLanguage === language.code && "is-active"]}
+					data-language-panel={language.code}
+					hidden={initialLanguage !== language.code}
+				>
+					<label>
+						<span>{t("labels.title")} ({language.label})</span>
+						<input
+							class="form-control"
+							data-title-input={language.code}
+							value={titleTranslations[language.code] ?? ""}
+							placeholder={language.code === def ? "Hello world" : language.code === "vi" ? "Xin chao" : ""}
+							disabled={isDisabled}
+						/>
+					</label>
+					<label>
+						<span>{t("labels.slug")} ({language.label})</span>
+						<div class="localized-slug-row">
+							<input
+								class="form-control"
+								data-slug-input={language.code}
+								value={slugTranslations[language.code] ?? ""}
+								placeholder={language.code === def ? "hello-world" : language.code === "vi" ? "xin-chao" : ""}
+								pattern="[a-z0-9-]+"
+								disabled={isDisabled}
+							/>
+							<button
+								type="button"
+								class="btn btn-outline-secondary"
+								data-generate-slug={language.code}
+								disabled={isDisabled}
+							>
+								{t("actions.generateSlug", "Generate slug")}
+							</button>
+						</div>
+					</label>
+					<label>
+						<span>{t("labels.description")} ({language.label})</span>
+						<input
+							class="form-control"
+							data-description-input={language.code}
+							value={descriptionTranslations[language.code] ?? ""}
+							placeholder={language.code === def ? "Short summary" : language.code === "vi" ? "Tom tat ngan" : ""}
+							disabled={isDisabled}
+						/>
+					</label>
+					<label>
+						<span>{t("labels.content")} ({language.label})</span>
+						<textarea class="form-control" data-content-input={language.code} rows="14" disabled={isDisabled}
+							>{contentTranslations[language.code] ?? (language.code === def ? "# New post" : "")}</textarea
+						>
+					</label>
+				</section>
+			))
+		}
+	</div>
+
+	<div class="admin-form-actions">
+		{mode === "create" ? (
+			<CreateSubmit label={submitLabel} disabled={isDisabled} />
+		) : (
+			<button class="btn btn-primary" type="submit" disabled={isDisabled}>{submitLabel}</button>
+		)}
+		{mode === "edit" && post && <a class="btn btn-outline-secondary" href={post.viewHref}>{t("actions.openPost")}</a>}
+	</div>
+</form>
+
+<style>
+	.localized-editor {
+		display: grid;
+		gap: 0.9rem;
+	}
+
+	.localized-editor-header {
+		display: flex;
+		align-items: end;
+		justify-content: space-between;
+		gap: 0.8rem;
+	}
+
+	.localized-editor-header h2 {
+		margin: 0;
+		font-size: 1.1rem;
+	}
+
+	.localized-editor-tabs {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+	}
+
+	.localized-editor-tabs .nav-link {
+		border-radius: 0;
+	}
+
+	.localized-editor-tab {
+		border-radius: 0;
+		padding: 0.3rem 0.65rem;
+		font-size: 0.8rem;
+	}
+
+	.localized-editor-panel {
+		display: grid;
+		gap: 0.85rem;
+		padding: 0.9rem;
+		border-radius: 0;
+		background: rgba(var(--gray-light), 0.2);
+		border: 1px solid rgba(var(--gray), 0.12);
+	}
+
+	.localized-editor-panel textarea {
+		min-height: 300px;
+	}
+
+	.localized-slug-row {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 0.5rem;
+		align-items: center;
+	}
+
+	@media (max-width: 720px) {
+		.localized-editor-header {
+			flex-direction: column;
+			align-items: stretch;
+		}
+
+		.localized-slug-row {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>
+
+<script is:inline>
+	const slugifyValue = (value) =>
+		value
+			.trim()
+			.toLowerCase()
+			.normalize("NFD")
+			.replace(/[\u0300-\u036f]/g, "")
+			.replace(/[^a-z0-9]+/g, "-")
+			.replace(/^-+|-+$/g, "");
+
+	const syncLocalizedEditor = (root) => {
+		if (!(root instanceof HTMLElement)) {
+			return;
+		}
+
+		const slugField = root.querySelector("[data-slug-translations]");
+		const titleField = root.querySelector("[data-title-translations]");
+		const descriptionField = root.querySelector("[data-description-translations]");
+		const contentField = root.querySelector("[data-content-translations]");
+		if (
+			!(slugField instanceof HTMLInputElement) ||
+			!(titleField instanceof HTMLInputElement) ||
+			!(descriptionField instanceof HTMLInputElement) ||
+			!(contentField instanceof HTMLInputElement)
+		) {
+			return;
+		}
+
+		const slugTranslations = {};
+		const titleTranslations = {};
+		const descriptionTranslations = {};
+		root.querySelectorAll("[data-title-input]").forEach((input) => {
+			if (!(input instanceof HTMLInputElement)) {
+				return;
+			}
+			const code = input.dataset.titleInput;
+			if (!code) {
+				return;
+			}
+			titleTranslations[code] = input.value;
+		});
+
+		root.querySelectorAll("[data-slug-input]").forEach((input) => {
+			if (!(input instanceof HTMLInputElement)) {
+				return;
+			}
+			const code = input.dataset.slugInput;
+			if (!code) {
+				return;
+			}
+			slugTranslations[code] = slugifyValue(input.value);
+		});
+
+		root.querySelectorAll("[data-description-input]").forEach((input) => {
+			if (!(input instanceof HTMLInputElement)) {
+				return;
+			}
+			const code = input.dataset.descriptionInput;
+			if (!code) {
+				return;
+			}
+			descriptionTranslations[code] = input.value;
+		});
+
+		const contentTranslations = {};
+		root.querySelectorAll("[data-content-input]").forEach((input) => {
+			if (!(input instanceof HTMLTextAreaElement)) {
+				return;
+			}
+			const code = input.dataset.contentInput;
+			if (!code) {
+				return;
+			}
+			contentTranslations[code] = input.value;
+		});
+
+		slugField.value = JSON.stringify(slugTranslations);
+		titleField.value = JSON.stringify(titleTranslations);
+		descriptionField.value = JSON.stringify(descriptionTranslations);
+		contentField.value = JSON.stringify(contentTranslations);
+	};
+
+	document.querySelectorAll("[data-localized-editor]").forEach((root) => {
+		if (!(root instanceof HTMLElement)) {
+			return;
+		}
+
+		const setActiveLanguage = (language) => {
+			root.dataset.activeLanguage = language;
+			root.querySelectorAll("[data-language-tab]").forEach((button) => {
+				if (!(button instanceof HTMLButtonElement)) {
+					return;
+				}
+				const isActive = button.dataset.languageTab === language;
+				button.classList.toggle("is-active", isActive);
+				button.classList.toggle("active", isActive);
+				button.setAttribute("aria-selected", isActive ? "true" : "false");
+			});
+			root.querySelectorAll("[data-language-panel]").forEach((panel) => {
+				if (!(panel instanceof HTMLElement)) {
+					return;
+				}
+				const isActive = panel.dataset.languagePanel === language;
+				panel.hidden = !isActive;
+				panel.classList.toggle("is-active", isActive);
+			});
+		};
+
+		root.querySelectorAll("[data-language-tab]").forEach((button) => {
+			button.addEventListener("click", () => {
+				if (button instanceof HTMLButtonElement && button.dataset.languageTab) {
+					setActiveLanguage(button.dataset.languageTab);
+				}
+			});
+		});
+
+		root.querySelectorAll("[data-generate-slug]").forEach((button) => {
+			button.addEventListener("click", () => {
+				if (!(button instanceof HTMLButtonElement) || !button.dataset.generateSlug) {
+					return;
+				}
+
+				const code = button.dataset.generateSlug;
+				const titleInput = root.querySelector(`[data-title-input="${code}"]`);
+				const slugInput = root.querySelector(`[data-slug-input="${code}"]`);
+				if (!(titleInput instanceof HTMLInputElement) || !(slugInput instanceof HTMLInputElement)) {
+					return;
+				}
+
+				slugInput.value = slugifyValue(titleInput.value);
+				syncLocalizedEditor(root);
+			});
+		});
+
+		root.addEventListener("input", () => syncLocalizedEditor(root));
+		syncLocalizedEditor(root);
+		setActiveLanguage(root.dataset.activeLanguage || root.dataset.defaultLanguage || "en");
+	});
+
+	document.addEventListener("click", (event) => {
+		const target = event.target;
+		if (!(target instanceof HTMLElement)) {
+			return;
+		}
+
+		const button = target.closest("[data-admin-back]");
+		if (!(button instanceof HTMLButtonElement)) {
+			return;
+		}
+
+		const fallbackHref = button.dataset.adminBack || "/admin/posts";
+		const referrer = document.referrer ? new URL(document.referrer, window.location.origin) : null;
+		const hasSameOriginReferrer = referrer?.origin === window.location.origin;
+
+		if (window.history.length > 1 && hasSameOriginReferrer) {
+			window.history.back();
+			return;
+		}
+
+		window.location.href = fallbackHref;
+	});
+</script>

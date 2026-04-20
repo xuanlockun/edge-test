@@ -1,0 +1,105 @@
+---
+export const prerender = false;
+
+import UserTable from "../../components/admin/UserTable.astro";
+import FilterBar from "../../components/admin/FilterBar.astro";
+import CreateAction from "../../components/admin/CreateAction.astro";
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { listAdminUsers } from "../../lib/db/admin-users";
+import { getDb } from "../../lib/blog";
+import { getUiTranslations } from "../../lib/i18n";
+
+const session = Astro.locals.adminSession;
+if (!session) {
+	return Astro.redirect("/admin/login");
+}
+
+const search = (Astro.url.searchParams.get("q") ?? "").trim();
+const statusParam = (Astro.url.searchParams.get("status") ?? "all").trim();
+const roleParam = (Astro.url.searchParams.get("role") ?? "all").trim();
+
+const users = await listAdminUsers(getDb(Astro.locals));
+const { t } = getUiTranslations(Astro);
+
+const roleOptions = Array.from(
+	new Map(
+		users.flatMap((user) => user.roles).map((item) => [String(item.id), item.label] as const),
+	).entries(),
+)
+	.sort((left, right) => left[1].localeCompare(right[1]))
+	.map(([value, label]) => ({ value, label }));
+
+const validUserStatuses = new Set(["all", "active", "inactive"]);
+const status = validUserStatuses.has(statusParam) ? statusParam : "all";
+const role = roleParam === "all" || roleOptions.some((option) => option.value === roleParam) ? roleParam : "all";
+
+const filteredUsers = users.filter((user) => {
+	const searchValue = search.toLowerCase();
+	const matchesSearch =
+		searchValue === "" ||
+		[user.displayName, user.email, ...user.roles.map((entry) => entry.label), ...user.roles.map((entry) => entry.name)]
+			.join(" ")
+			.toLowerCase()
+			.includes(searchValue);
+	const matchesStatus = status === "all" || (status === "active" ? user.isActive : !user.isActive);
+	const matchesRole = role === "all" || user.roles.some((entry) => String(entry.id) === role);
+	return matchesSearch && matchesStatus && matchesRole;
+});
+
+const hasActiveFilters = Boolean(search || status !== "all" || role !== "all");
+---
+
+<AdminLayout
+	title={t("headings.users")}
+	description={t("messages.manageUsers")}
+	session={session}
+	pageTitle={t("headings.users")}
+	pageDescription={t("messages.manageAdminUsers")}
+>
+	<div slot="actions" class="admin-page-actions">
+		<CreateAction href="/admin/users/new" label={t("actions.createUser")} />
+	</div>
+
+	<div class="admin-content-stack">
+		<FilterBar
+			title=""
+			description=""
+			searchName="q"
+			searchValue={search}
+			searchPlaceholder="Search users"
+			resetHref={hasActiveFilters ? "/admin/users" : ""}
+			submitLabel="Apply filters"
+			selects={[
+				{
+					name: "status",
+					label: "Status",
+					value: status,
+					options: [
+						{ value: "all", label: "All statuses" },
+						{ value: "active", label: t("status.active") },
+						{ value: "inactive", label: t("status.inactive") },
+					],
+				},
+				{
+					name: "role",
+					label: "Role",
+					value: role,
+					options: [{ value: "all", label: "All roles" }, ...roleOptions],
+				},
+			]}
+		/>
+		{Astro.url.searchParams.get("created") && <p class="alert alert-success mb-0">{t("messages.userCreated")}</p>}
+		{Astro.url.searchParams.get("saved") && <p class="alert alert-success mb-0">{t("messages.userSaved")}</p>}
+		{Astro.url.searchParams.get("error") && <p class="alert alert-danger mb-0">{t("messages.userRequestFailed")}</p>}
+		{hasActiveFilters && (
+			<p class="text-body-secondary small mb-0">
+				Showing {filteredUsers.length} of {users.length} users.
+			</p>
+		)}
+		<UserTable
+			users={filteredUsers}
+			emptyTitle={hasActiveFilters ? "No users match your filters" : undefined}
+			emptyDescription={hasActiveFilters ? "Try clearing the filters or broadening the search." : undefined}
+		/>
+	</div>
+</AdminLayout>

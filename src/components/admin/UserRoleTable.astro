@@ -1,0 +1,15 @@
+---
+import UserTable from "./UserTable.astro";
+import type { AdminUserSummary, RoleSummary } from "../../lib/auth/types";
+
+interface Props {
+	users: AdminUserSummary[];
+	roles: RoleSummary[];
+}
+
+const { users } = Astro.props;
+---
+
+<div class="admin-table-surface">
+	<UserTable users={users} />
+</div>

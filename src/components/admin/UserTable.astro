@@ -1,0 +1,78 @@
+---
+import IconAction from "./IconAction.astro";
+import type { AdminUserSummary } from "../../lib/auth/types";
+import { getUiTranslations } from "../../lib/i18n";
+
+interface Props {
+	users: AdminUserSummary[];
+	emptyTitle?: string;
+	emptyDescription?: string;
+}
+
+const { users, emptyTitle, emptyDescription } = Astro.props;
+const { t } = getUiTranslations(Astro);
+---
+
+{
+	users.length === 0 ? (
+		<div class="admin-state-surface">
+			<h2 class="h5 mb-2">{emptyTitle ?? t("messages.noUsersYet")}</h2>
+			<p class="mb-0 admin-muted">{emptyDescription ?? t("messages.noUsersHelp")}</p>
+		</div>
+	) : (
+		<div class="admin-table-surface table-responsive">
+			<table class="table table-sm table-hover align-middle mb-0">
+				<thead>
+					<tr>
+						<th>{t("labels.user")}</th>
+						<th>{t("labels.status")}</th>
+						<th>{t("labels.roles")}</th>
+						<th>{t("labels.action")}</th>
+					</tr>
+				</thead>
+				<tbody>
+					{
+						users.map((user) => (
+							<tr>
+								<td>
+									<div class="d-flex flex-column gap-1">
+										<strong>{user.displayName}</strong>
+										<span class="text-muted small">{user.email}</span>
+									</div>
+								</td>
+								<td>
+									<span class={`badge ${user.isActive ? "bg-success" : "bg-secondary"}`}>
+										{user.isActive ? t("status.active") : t("status.inactive")}
+									</span>
+								</td>
+								<td>
+									<div class="d-flex flex-wrap gap-1">
+										{
+											user.roles.length > 0 ? (
+												user.roles.map((role) => (
+													<span class="badge bg-primary text-uppercase">{role.label}</span>
+												))
+											) : (
+												<span class="text-muted small">{t("messages.noRolesAssigned")}</span>
+											)
+										}
+									</div>
+								</td>
+								<td class="admin-action-cell">
+									<div class="admin-action-group">
+										<IconAction
+											href={`/admin/users/${user.id}/edit`}
+											icon="edit"
+											label={t("actions.edit")}
+											variant="btn-outline-primary"
+										/>
+									</div>
+								</td>
+							</tr>
+						))
+					}
+				</tbody>
+			</table>
+		</div>
+	)
+}

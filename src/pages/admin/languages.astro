@@ -1,0 +1,197 @@
+---
+export const prerender = false;
+
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import LanguageForm from "../../components/admin/LanguageForm.astro";
+import LanguageTable from "../../components/admin/LanguageTable.astro";
+import CreateSubmit from "../../components/admin/CreateSubmit.astro";
+import languageManagerScript from "../../components/admin/language-manager.ts?url";
+import translationManagerScript from "../../components/admin/translation-manager.js?url";
+import { getDb } from "../../lib/blog";
+import { getLanguageByCode, listAllLanguages, listEnabledLanguages } from "../../lib/languages";
+import { getUiTranslations } from "../../lib/i18n";
+import type { AdminSession } from "../../lib/auth/types";
+
+const session: AdminSession | null = Astro.locals.adminSession;
+if (!session) {
+	return Astro.redirect("/admin/login");
+}
+
+let languages = [];
+let selectedLanguage = null;
+let enabledLanguages = [];
+let loadError = "";
+const { t } = getUiTranslations(Astro);
+const searchLocale = (Astro.url.searchParams.get("locale") ?? "").toLowerCase().trim();
+
+try {
+	const db = getDb(Astro.locals);
+	languages = await listAllLanguages(db);
+	selectedLanguage =
+		(searchLocale && (await getLanguageByCode(db, searchLocale))) ||
+		languages.find((language) => language.isDefault) ||
+		languages[0] ||
+		null;
+	enabledLanguages = await listEnabledLanguages(db);
+} catch (error) {
+	loadError = error instanceof Error ? error.message : t("messages.languageRequestFailed");
+}
+
+const editorLanguages = [
+	{
+		code: selectedLanguage?.code ?? enabledLanguages[0]?.code ?? languages[0]?.code ?? "en",
+		label: selectedLanguage?.name ?? enabledLanguages[0]?.name ?? languages[0]?.name ?? "English",
+		isActive: true,
+	},
+	...enabledLanguages
+		.filter((entry) => entry.code !== selectedLanguage?.code)
+		.map((entry) => ({ code: entry.code, label: entry.name, isActive: false })),
+];
+const selectedLocale = editorLanguages[0]?.code ?? "";
+const headingTitle = t("headings.languages");
+const helpText = t("messages.manageLanguagesHelp");
+const translationSectionTitle = t("labels.translationEntry", "Create translation entry");
+const translationHelpText = t(
+	"messages.manageTranslationsHelp",
+	"Fill the key and every language tab, then create a new translation entry.",
+);
+const addButtonLabel = t("actions.addTranslation", "Create translation entry");
+const keyLabel = t("labels.translationKey");
+const valueLabel = t("labels.translationValue");
+const translationTabsLabel = t("labels.languages", "Languages");
+---
+
+<AdminLayout
+	title={headingTitle}
+	description={helpText}
+	session={session}
+	pageTitle={headingTitle}
+	pageDescription={helpText}
+>
+	<div class="admin-content-stack">
+		{loadError && <p class="alert alert-warning mb-0">{loadError}</p>}
+		<div class="admin-form-surface">
+			<LanguageTable
+				languages={languages}
+				tableMessages={{
+					createSuccess: t("messages.languageCreated"),
+					updateSuccess: t("messages.languageSaved"),
+					error: t("messages.languageRequestFailed"),
+				}}
+				/>
+		</div>
+		<details class="admin-collapsible-surface admin-form-surface">
+			<summary class="admin-collapsible-summary">
+				<div>
+					<h2 class="h5 mb-1">Add New Language</h2>
+					<p class="admin-inline-muted mb-0">{t("messages.languageCodeHelp")}</p>
+				</div>
+				<span class="admin-collapsible-toggle" aria-hidden="true"></span>
+			</summary>
+			<div class="admin-collapsible-body">
+				<LanguageForm
+					showHeader={false}
+					formMessages={{
+						success: t("messages.languageCreated"),
+						error: t("messages.languageCreateFailed"),
+					}}
+				/>
+			</div>
+		</details>
+		<details class="admin-collapsible-surface admin-form-surface" id="translations">
+			<summary class="admin-collapsible-summary">
+				<div>
+					<h2 class="h5 mb-1">{translationSectionTitle}</h2>
+					<p class="admin-inline-muted mb-0">{translationHelpText}</p>
+				</div>
+				<span class="admin-collapsible-toggle" aria-hidden="true"></span>
+			</summary>
+			<div class="admin-collapsible-body">
+				<div class="admin-collapsible-toolbar mb-3">
+					<label class="visually-hidden" for="translation-locale-select">{t("labels.language")}</label>
+					<select
+						id="translation-locale-select"
+						class="form-select form-select-sm w-auto"
+						data-translation-locale-select
+					>
+						{
+							languages.map((language) => (
+								<option value={language.code} selected={language.code === selectedLocale}>
+									{language.name}
+								</option>
+							))
+						}
+					</select>
+				</div>
+
+				<div class="mb-3" data-translation-notice aria-live="polite"></div>
+				<form
+					data-translation-form
+					class="row g-3"
+					data-current-locale={selectedLocale}
+					data-language-tabs={JSON.stringify(editorLanguages)}
+					data-api-base-template="/api/admin/languages/__locale__/translations"
+					data-text-add-button={addButtonLabel}
+					data-text-create-success={t("messages.translationCreateSuccess")}
+					data-text-required-key="Translation key is required."
+					data-text-required-values="Enter at least one translation value."
+					data-text-tablist={translationTabsLabel}
+				>
+					<div class="col-12 col-lg-4">
+						<label class="form-label" for="translation-key">{keyLabel}</label>
+						<input class="form-control" id="translation-key" name="key" required />
+					</div>
+					<div class="col-12">
+						<div class="admin-card-surface border rounded-0 p-3">
+							<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+								<strong class="small text-uppercase text-muted">{translationTabsLabel}</strong>
+								<span class="small text-muted">{valueLabel}</span>
+							</div>
+							<ul class="nav nav-tabs flex-wrap gap-1" role="tablist" data-translation-tablist>
+								{
+									editorLanguages.map((entry, index) => (
+										<li class="nav-item" role="presentation">
+											<button
+												type="button"
+												class:list={["nav-link", index === 0 && "active"]}
+												data-translation-tab={entry.code}
+												aria-selected={index === 0 ? "true" : "false"}
+											>
+												{entry.label}
+											</button>
+										</li>
+									))
+								}
+							</ul>
+							<div class="border border-top-0 rounded-0 p-3" data-translation-panels>
+								{
+									editorLanguages.map((entry, index) => (
+										<section
+											class:list={["translation-pane", index === 0 ? "" : "d-none"]}
+											data-translation-panel={entry.code}
+										>
+											<label class="form-label" for={`translation-value-${entry.code}`}>{entry.label}</label>
+											<textarea
+												class="form-control"
+												id={`translation-value-${entry.code}`}
+												name={`value-${entry.code}`}
+												rows="4"
+												placeholder={`${entry.label} ${valueLabel.toLowerCase()}`}
+											></textarea>
+										</section>
+									))
+								}
+							</div>
+						</div>
+					</div>
+					<div class="col-12 d-flex flex-wrap gap-2">
+						<CreateSubmit label={addButtonLabel} attrs={{ "data-translation-submit": "" }} />
+					</div>
+				</form>
+			</div>
+		</details>
+	</div>
+
+	<script type="module" src={languageManagerScript} client:load></script>
+	<script type="module" src={translationManagerScript} client:load></script>
+</AdminLayout>

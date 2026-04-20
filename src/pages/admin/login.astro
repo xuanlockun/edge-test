@@ -1,0 +1,121 @@
+---
+export const prerender = false;
+
+import BaseHead from "../../components/BaseHead.astro";
+import Footer from "../../components/Footer.astro";
+import Header from "../../components/Header.astro";
+import { SITE_TITLE } from "../../consts";
+import { getDb } from "../../lib/blog";
+import { getUiTranslations } from "../../lib/i18n";
+import { countAdminUsers } from "../../lib/db/admin-users";
+
+const error = Astro.url.searchParams.get("error");
+const setupError = Astro.url.searchParams.get("setupError");
+const db = getDb(Astro.locals);
+const adminUserCount = await countAdminUsers(db);
+const needsInitialSetup = adminUserCount === 0;
+const { language, t } = getUiTranslations(Astro);
+const errorMessage =
+	error === "access-denied"
+		? t("messages.accessDenied")
+		: error === "invalid"
+			? t("messages.invalidCredentials")
+			: "";
+const setupErrorMessage = setupError || "";
+---
+
+<!doctype html>
+<html lang={language}>
+	<head>
+		<BaseHead title={`${t("headings.adminLogin")} | ${SITE_TITLE}`} description={t("messages.signInIntro")} />
+		<style>
+			.login-shell {
+				min-height: calc(100vh - 140px);
+				display: grid;
+				place-items: center;
+				padding: 3rem 1rem;
+			}
+			.panel {
+				width: min(100%, 32rem);
+				padding: 2rem;
+				background: white;
+				border-radius: 1rem;
+				box-shadow: 0 1rem 2rem rgba(15, 23, 42, 0.12);
+				border: 1px solid rgba(15, 23, 42, 0.08);
+			}
+			form {
+				display: grid;
+				gap: 1rem;
+			}
+			label {
+				display: grid;
+				gap: 0.4rem;
+			}
+			.muted {
+				color: rgb(var(--gray));
+			}
+			.login-actions {
+				display: grid;
+				gap: 0.75rem;
+			}
+			.login-actions button {
+				width: 100%;
+			}
+			.error {
+				color: #a61b29;
+				margin: 0;
+			}
+		</style>
+	</head>
+	<body>
+		<Header />
+		<main class="login-shell">
+			<section class="panel">
+				{needsInitialSetup ? (
+					<>
+						<h1>Initial setup</h1>
+						<p class="muted">Create the first admin account for this fresh install.</p>
+						{setupErrorMessage && <p class="error">{setupErrorMessage}</p>}
+						<form method="post" action="/api/admin/auth/setup">
+							<label>
+								<span>{t("labels.email")}</span>
+								<input class="form-control" type="email" name="email" autocomplete="username" required />
+							</label>
+							<label>
+								<span>Display name</span>
+								<input class="form-control" type="text" name="displayName" autocomplete="name" required />
+							</label>
+							<label>
+								<span>{t("labels.password")}</span>
+								<input class="form-control" type="password" name="password" autocomplete="new-password" required />
+							</label>
+							<div class="login-actions">
+								<button class="btn btn-primary" type="submit">Create admin account</button>
+							</div>
+						</form>
+					</>
+				) : (
+					<>
+						<h1>{t("headings.adminLogin")}</h1>
+						<p class="muted">{t("messages.signInIntro")}</p>
+						{errorMessage && <p class="error">{errorMessage}</p>}
+						<form method="post" action="/api/admin/auth/login">
+							<label>
+								<span>{t("labels.email")}</span>
+								<input class="form-control" type="email" name="email" autocomplete="username" required />
+							</label>
+							<label>
+								<span>{t("labels.password")}</span>
+								<input class="form-control" type="password" name="password" autocomplete="current-password" required />
+							</label>
+							<div class="login-actions">
+								<button class="btn btn-primary" type="submit">{t("actions.signIn")}</button>
+							</div>
+						</form>
+					</>
+				)}
+			</section>
+		</main>
+		<Footer />
+	</body>
+</html>

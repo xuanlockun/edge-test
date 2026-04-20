@@ -1,0 +1,157 @@
+---
+import { getUiTranslations } from "../lib/i18n";
+
+interface BannerSlide {
+	imageUrl: string;
+	title: string;
+	headline?: string;
+	caption?: string;
+	altText?: string;
+	linkUrl?: string;
+}
+
+interface Props {
+	slides?: BannerSlide[];
+	bannerUrls?: string[];
+}
+
+const { t } = getUiTranslations(Astro);
+const slides =
+	Astro.props.slides ??
+	(Astro.props.bannerUrls ?? []).map((url, index) => ({
+		imageUrl: url,
+		title: `${t("labels.banner", "Banner")} ${index + 1}`,
+		altText: `${t("labels.banner", "Banner")} ${index + 1}`,
+	}));
+---
+
+<section class="banner-section">
+	<div class="banner-section-frame">
+		<div
+			id="bannerCarousel"
+			class="carousel slide"
+			data-bs-ride="carousel"
+			data-bs-interval="5000"
+		>
+			<div class="carousel-inner">
+				{
+					slides.map((slide, index) => (
+						<div class:list={["carousel-item", index === 0 && "active"]} key={`${slide.imageUrl}-${index}`}>
+							<div class="banner-slide">
+								{slide.linkUrl ? (
+									<a href={slide.linkUrl} class="banner-slide-link">
+										<img src={slide.imageUrl} alt={slide.altText ?? slide.title} loading="lazy" class="d-block w-100 banner-slide-image" />
+										{(slide.headline?.trim() || slide.caption?.trim()) && (
+											<div class="banner-slide-overlay">
+												<div class="banner-slide-copy">
+													<h2 class="banner-slide-title">{slide.headline?.trim() || slide.title}</h2>
+													{slide.caption?.trim() && <p class="banner-slide-caption">{slide.caption}</p>}
+												</div>
+											</div>
+										)}
+									</a>
+								) : (
+									<>
+										<img src={slide.imageUrl} alt={slide.altText ?? slide.title} loading="lazy" class="d-block w-100 banner-slide-image" />
+										{(slide.headline?.trim() || slide.caption?.trim()) && (
+											<div class="banner-slide-overlay">
+												<div class="banner-slide-copy">
+													<h2 class="banner-slide-title">{slide.headline?.trim() || slide.title}</h2>
+													{slide.caption?.trim() && <p class="banner-slide-caption">{slide.caption}</p>}
+												</div>
+											</div>
+										)}
+									</>
+								)}
+							</div>
+						</div>
+					))
+				}
+			</div>
+			{
+				slides.length > 1 && (
+					<>
+						<button class="carousel-control-prev" type="button" data-bs-target="#bannerCarousel" data-bs-slide="prev">
+							<span class="carousel-control-prev-icon" aria-hidden="true"></span>
+							<span class="visually-hidden">{t("actions.previous", "Previous")}</span>
+						</button>
+						<button class="carousel-control-next" type="button" data-bs-target="#bannerCarousel" data-bs-slide="next">
+							<span class="carousel-control-next-icon" aria-hidden="true"></span>
+							<span class="visually-hidden">{t("actions.next", "Next")}</span>
+						</button>
+						<div class="carousel-indicators">
+							{
+								slides.map((_, index) => (
+									<button
+										type="button"
+										key={`dot-${index}`}
+										data-bs-target="#bannerCarousel"
+										data-bs-slide-to={index}
+										class:list={[index === 0 && "active"]}
+										aria-current={index === 0 ? "true" : undefined}
+										aria-label={`${t("labels.slide", "Slide")} ${index + 1}`}
+									/>
+								))
+							}
+						</div>
+					</>
+				)
+			}
+		</div>
+	</div>
+</section>
+<style>
+	.banner-section-frame {
+		position: relative;
+	}
+
+	.banner-slide {
+		position: relative;
+	}
+
+	.banner-slide-image {
+		display: block;
+		width: 100%;
+		height: auto;
+		object-fit: cover;
+	}
+
+	.banner-slide-link {
+		display: block;
+		color: inherit;
+		text-decoration: none;
+	}
+
+	.banner-slide-copy {
+		max-width: min(42rem, 100%);
+		padding: 0;
+		color: #fff;
+		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+	}
+
+	.banner-slide-overlay {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: flex-start;
+		padding: clamp(1rem, 4vw, 3rem);
+		background: linear-gradient(90deg, rgba(15, 23, 42, 0.55) 0%, rgba(15, 23, 42, 0.24) 34%, rgba(15, 23, 42, 0) 72%);
+		pointer-events: none;
+	}
+
+	.banner-slide-title {
+		margin: 0;
+		font-size: clamp(1.7rem, 4vw, 4rem);
+		line-height: 1.02;
+		font-weight: 800;
+	}
+
+	.banner-slide-caption {
+		margin: 0.65rem 0 0;
+		font-size: clamp(0.95rem, 1.6vw, 1.15rem);
+		line-height: 1.5;
+		max-width: 34rem;
+		color: rgba(255, 255, 255, 0.94);
+	}
+</style>

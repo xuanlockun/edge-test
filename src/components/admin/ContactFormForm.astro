@@ -1,0 +1,574 @@
+---
+import type { ContactFormRecord } from "../../lib/contact-forms";
+import CreateSubmit from "./CreateSubmit.astro";
+import { getLanguageCatalog, getSupportedLanguages, getUiTranslations, localizeAdminHref } from "../../lib/i18n";
+
+interface Props {
+	mode: "create" | "edit";
+	action: string;
+	form?: ContactFormRecord | null;
+	canSubmit: boolean;
+	backHref?: string;
+	loadError?: string;
+}
+
+const { mode, action, form = null, canSubmit, backHref = "/admin/contact-forms", loadError = "" } = Astro.props;
+
+const { t, language } = getUiTranslations(Astro);
+const catalog = getLanguageCatalog(Astro.locals);
+const languages = getSupportedLanguages(catalog);
+const defaultLanguageCode = catalog.defaultLanguageCode;
+const labelLanguages = [
+	...languages.filter((entry) => entry.code === defaultLanguageCode),
+	...languages.filter((entry) => entry.code !== defaultLanguageCode),
+];
+const submitLabel = mode === "edit" ? t("actions.saveContactForm") : t("actions.createContactForm");
+const isDisabled = Boolean(loadError) || !canSubmit;
+const initialFields = form?.fields ?? [];
+const displayFields =
+	initialFields.length > 0
+		? initialFields
+		: mode === "create"
+			? [{ id: 1, type: "text", label: { [defaultLanguageCode]: "" }, required: false, order: 1 }]
+			: [];
+const initialTitle = form?.title ?? "";
+const initialDescription = form?.description ?? "";
+const initialLayout = form?.layout ?? "split";
+const initialBackgroundStyle = form?.backgroundStyle ?? "solid";
+const initialBackgroundColor = form?.backgroundColor ?? "#f8fbff";
+const initialButtonColor = form?.buttonColor ?? "#4f80ff";
+const fieldsJson = JSON.stringify(initialFields);
+const labelLanguagesJson = JSON.stringify(labelLanguages);
+const labelGridColumns = `44px 1fr repeat(${Math.max(labelLanguages.length, 1)}, minmax(180px, 1fr)) 120px 120px`;
+const backIcon = `
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+		<path d="M14 6l-6 6 6 6" />
+		<path d="M20 12H8" />
+	</svg>
+`;
+---
+
+<div class="admin-surface-header">
+	<a class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2" href={localizeAdminHref(backHref, language)}>
+		<span aria-hidden="true" set:html={backIcon}></span>
+		{t("actions.back")}
+	</a>
+	{!canSubmit && <p class="admin-inline-muted mb-0">{t("messages.cannotSaveForm")}</p>}
+</div>
+
+{loadError && <p class="admin-notice admin-notice-error">{loadError}</p>}
+
+<form class="admin-form-shell" method="post" action={action}>
+	{mode === "edit" && form && <input type="hidden" name="id" value={form.id} />}
+	<div class="admin-form-surface">
+		<div class="admin-form-grid">
+			<label>
+				<span>{t("labels.title")}</span>
+				<input
+					class="form-control"
+					name="title"
+					required
+					value={initialTitle}
+					placeholder={t("messages.contactFormTitlePlaceholder", "Main contact form") ?? "Main contact form"}
+					disabled={isDisabled}
+				/>
+				<p class="admin-inline-muted mb-0">{t("messages.contactFormTitleHelp", "Shown as the public heading of this form.")}</p>
+			</label>
+			<label>
+				<span>{t("labels.description")}</span>
+				<textarea
+					class="form-control"
+					name="description"
+					rows="4"
+					placeholder={t("messages.contactFormDescriptionPlaceholder", "Add a short description to support the heading.") ?? "Add a short description to support the heading."}
+					disabled={isDisabled}
+				>{initialDescription}</textarea>
+				<p class="admin-inline-muted mb-0">{t("messages.contactFormDescriptionHelp", "Optional supporting text shown above or beside the form.")}</p>
+			</label>
+			<label>
+				<span>{t("labels.template")}</span>
+				<select class="form-select" name="layout" disabled={isDisabled}>
+					<option value="split" selected={initialLayout === "split"}>
+						{t("messages.contactFormTemplateSplit", "Split layout")}
+					</option>
+					<option value="stacked" selected={initialLayout === "stacked"}>
+						{t("messages.contactFormTemplateStacked", "Stacked layout")}
+					</option>
+					<option value="compact" selected={initialLayout === "compact"}>
+						{t("messages.contactFormTemplateCompact", "Compact layout")}
+					</option>
+				</select>
+				<p class="admin-inline-muted mb-0">{t("messages.contactFormTemplateHelp", "Choose a preset layout for the public contact section.")}</p>
+			</label>
+			<label>
+				<span>{t("messages.contactFormBackgroundStyle", "Background style")}</span>
+				<select class="form-select" name="backgroundStyle" disabled={isDisabled}>
+					<option value="solid" selected={initialBackgroundStyle === "solid"}>
+						{t("messages.contactFormBackgroundSolid", "Solid")}
+					</option>
+					<option value="gradient" selected={initialBackgroundStyle === "gradient"}>
+						{t("messages.contactFormBackgroundGradient", "Gradient")}
+					</option>
+					<option value="radial" selected={initialBackgroundStyle === "radial"}>
+						{t("messages.contactFormBackgroundRadial", "Radial")}
+					</option>
+				</select>
+				<p class="admin-inline-muted mb-0">{t("messages.contactFormBackgroundStyleHelp", "Choose how the background color is painted.")}</p>
+			</label>
+			<div class="contact-form-colors">
+				<label>
+					<span>{t("messages.contactFormBackgroundColor", "Background color")}</span>
+					<input class="form-control form-control-color" type="color" name="backgroundColor" value={initialBackgroundColor} disabled={isDisabled} />
+				</label>
+				<label>
+					<span>{t("messages.contactFormButtonColor", "Button color")}</span>
+					<input class="form-control form-control-color" type="color" name="buttonColor" value={initialButtonColor} disabled={isDisabled} />
+				</label>
+			</div>
+			<label>
+				<span>{t("labels.order")}</span>
+				<input class="form-control" type="number" min="0" name="sortOrder" value={String(form?.sortOrder ?? 0)} disabled={isDisabled} />
+			</label>
+			<label class="admin-check-row">
+				<input class="form-check-input" type="checkbox" name="isActive" checked={form?.isActive ?? true} disabled={isDisabled} />
+				<span>{t("labels.enabled")}</span>
+			</label>
+		</div>
+	</div>
+
+	<div class="admin-form-section contact-fields-wrapper">
+		<div
+			class="contact-fields-editor"
+			data-contact-fields-editor
+			data-disabled={String(isDisabled)}
+			data-label-languages={labelLanguagesJson}
+			data-remove-label={t("actions.remove")}
+			data-type-label={t("labels.fieldType")}
+			data-required-label={t("labels.required")}
+			data-text-option={t("labels.textField")}
+			data-email-option={t("labels.emailField")}
+			data-textarea-option={t("labels.textareaField")}
+		>
+			<div class="contact-fields-toolbar">
+				<strong>{t("headings.contactFormFields")}</strong>
+				<button class="btn btn-outline-secondary btn-sm" type="button" data-contact-field-add data-readonly={String(isDisabled)} disabled={isDisabled}>
+					{t("actions.addField")}
+				</button>
+			</div>
+			<p class="admin-inline-muted mb-0">{t("messages.contactFormBuilderHelp")}</p>
+			<input type="hidden" name="contactFormFields" data-contact-fields-payload value={fieldsJson} />
+			<div class="contact-fields-config">
+				<div class="contact-fields-table" role="table">
+					<div class="contact-fields-header" role="row" style={`grid-template-columns: ${labelGridColumns};`}>
+						<span></span>
+						<span>{t("labels.fieldType")}</span>
+						{labelLanguages.map((entry) => <span>{t("labels.label")} ({entry.code.toUpperCase()})</span>)}
+						<span>{t("labels.required")}</span>
+						<span>{t("labels.action")}</span>
+					</div>
+					<div class="contact-fields-rows" data-contact-fields-rows>
+						{
+							displayFields.map((field) => {
+								const type = field.type ?? "text";
+								const labelValues = labelLanguages.map((entry) => ({
+									code: entry.code,
+									value: field.label?.[entry.code] ?? "",
+								}));
+								return (
+									<div
+										class="contact-field-row"
+										draggable={!isDisabled}
+										data-contact-field
+										data-field-id={String(field.id ?? 1)}
+										style={`grid-template-columns: ${labelGridColumns};`}
+									>
+										<span class="drag-handle" data-drag-handle aria-label="Drag field"></span>
+										<div class="contact-field-meta">
+											<label>
+												<span>{t("labels.fieldType")}</span>
+												<select data-contact-field-type disabled={isDisabled}>
+													<option value="text" selected={type === "text"}>
+														{t("labels.textField")}
+													</option>
+													<option value="email" selected={type === "email"}>
+														{t("labels.emailField")}
+													</option>
+													<option value="textarea" selected={type === "textarea"}>
+														{t("labels.textareaField")}
+													</option>
+												</select>
+											</label>
+											<label class="contact-field-required">
+												<span>{t("labels.required")}</span>
+												<input type="checkbox" data-contact-field-required checked={field.required} disabled={isDisabled} />
+											</label>
+											<button class="admin-ghost-button" type="button" data-contact-field-remove disabled={isDisabled}>
+												{t("actions.remove")}
+											</button>
+										</div>
+										{labelValues.map((entry, index) => (
+											<label>
+												<span>{t("labels.label")} ({entry.code.toUpperCase()})</span>
+												<input
+													type="text"
+													data-contact-field-label
+													data-language-code={entry.code}
+													value={entry.value}
+													disabled={isDisabled}
+													required={index === 0}
+												/>
+											</label>
+										))}
+									</div>
+								);
+							})
+						}
+					</div>
+				</div>
+				<p class="admin-inline-muted mb-0" data-contact-fields-empty hidden>
+					{t("messages.noContactFieldsConfigured")}
+				</p>
+			</div>
+		</div>
+	</div>
+
+	<div class="admin-form-actions">
+		{mode === "create" ? (
+			<CreateSubmit label={submitLabel} disabled={isDisabled} />
+		) : (
+			<button class="btn btn-primary" type="submit" disabled={isDisabled}>{submitLabel}</button>
+		)}
+	</div>
+</form>
+
+<style>
+	.contact-fields-config {
+		display: grid;
+		gap: 1rem;
+	}
+
+	.contact-fields-toolbar {
+		display: flex;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+
+	.contact-fields-toolbar strong {
+		font-size: 0.95rem;
+	}
+
+	.contact-form-colors {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.75rem;
+	}
+
+	.contact-form-colors label {
+		display: grid;
+		gap: 0.35rem;
+	}
+
+	.contact-fields-table {
+		width: 100%;
+	}
+
+	.contact-fields-header {
+		display: grid;
+		gap: 0.5rem;
+		padding: 0.6rem 0;
+		font-size: 0.72rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		color: var(--admin-muted, #60739f);
+	}
+
+	.contact-fields-rows {
+		display: grid;
+		gap: 0.7rem;
+	}
+
+	.contact-field-row {
+		display: grid;
+		gap: 0.75rem;
+		padding: 0.85rem;
+		border: 1px solid rgba(var(--gray), 0.12);
+		border-radius: 1rem;
+		background: rgba(var(--gray-light), 0.28);
+		align-items: start;
+	}
+
+	.contact-field-meta {
+		display: grid;
+		gap: 0.75rem;
+	}
+
+	.contact-field-row > label {
+		display: grid;
+		gap: 0.35rem;
+	}
+
+	.contact-field-required {
+		display: grid;
+		grid-template-columns: auto 1fr;
+		align-items: center;
+		gap: 0.4rem;
+	}
+
+	.contact-field-row label span {
+		display: block;
+		font-size: 0.8rem;
+		font-weight: 600;
+		margin-bottom: 0.25rem;
+	}
+
+	@media (max-width: 720px) {
+		.contact-fields-toolbar {
+			flex-direction: column;
+			align-items: stretch;
+		}
+
+		.contact-form-colors {
+			grid-template-columns: 1fr;
+		}
+
+		.contact-field-row {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>
+
+<script type="module">
+	let editor;
+	let contactRows;
+	let contactPayload;
+	let addContactButton;
+	let contactEmptyState;
+	let isContactReadOnly = false;
+	let nextFieldId = 0;
+	let draggedContactRow = null;
+
+	const initializeContactFormEditor = () => {
+		editor = document.querySelector("[data-contact-fields-editor]");
+		contactRows = editor?.querySelector("[data-contact-fields-rows]");
+		contactPayload = editor?.querySelector("[data-contact-fields-payload]");
+		addContactButton = editor?.querySelector("[data-contact-field-add]");
+		contactEmptyState = editor?.querySelector("[data-contact-fields-empty]");
+		isContactReadOnly = addContactButton?.dataset.readonly === "true";
+
+		if (!(contactRows instanceof HTMLElement) || !(contactPayload instanceof HTMLInputElement)) {
+			return;
+		}
+
+		const initialContactFields = parseConfig(contactPayload.value);
+		const existingRows = Array.from(contactRows.querySelectorAll("[data-contact-field]"));
+		nextFieldId = Math.max(
+			initialContactFields.reduce((max, field) => Math.max(max, Number(field.id ?? 0)), 0),
+			existingRows.reduce((max, row) => Math.max(max, Number(row.dataset.fieldId ?? 0)), 0),
+		);
+		if (existingRows.length === 0) {
+			initialContactFields.forEach((entry) => {
+				contactRows.append(createContactFieldRow(entry));
+			});
+		}
+		syncContactFields();
+
+		addContactButton?.addEventListener("click", () => {
+			contactRows.append(createContactFieldRow());
+			const lastInput = contactRows.querySelector("[data-contact-field]:last-child [data-contact-field-label]");
+			if (lastInput instanceof HTMLInputElement) {
+				lastInput.focus();
+			}
+			syncContactFields();
+		});
+
+		contactRows.addEventListener("click", (event) => {
+			const target = event.target;
+			if (!(target instanceof HTMLElement) || !target.matches("[data-contact-field-remove]")) {
+				return;
+			}
+			const row = target.closest("[data-contact-field]");
+			if (row) {
+				row.remove();
+				syncContactFields();
+			}
+		});
+
+		contactRows.addEventListener("input", syncContactFields);
+		contactRows.addEventListener("change", syncContactFields);
+
+		contactRows.addEventListener("dragstart", (event) => {
+			const row = findContactRow(event.target);
+			if (!row || isContactReadOnly) {
+				return;
+			}
+			draggedContactRow = row;
+			row.classList.add("is-dragging");
+			event.dataTransfer?.setData("text/plain", "");
+			event.dataTransfer?.setDragImage(row, 0, 0);
+		});
+
+		contactRows.addEventListener("dragover", (event) => {
+			if (!draggedContactRow) {
+				return;
+			}
+			event.preventDefault();
+			const row = findContactRow(event.target);
+			if (!row || row === draggedContactRow) {
+				return;
+			}
+			const bounding = row.getBoundingClientRect();
+			const after = event.clientY > bounding.top + bounding.height / 2;
+			if (after) {
+				row.after(draggedContactRow);
+			} else {
+				row.before(draggedContactRow);
+			}
+		});
+
+		contactRows.addEventListener("drop", (event) => {
+			event.preventDefault();
+			if (!draggedContactRow) {
+				return;
+			}
+			draggedContactRow.classList.remove("is-dragging");
+			draggedContactRow = null;
+			syncContactFields();
+		});
+
+		contactRows.addEventListener("dragend", () => {
+			if (draggedContactRow) {
+				draggedContactRow.classList.remove("is-dragging");
+				draggedContactRow = null;
+			}
+		});
+	};
+
+	if (document.readyState === "loading") {
+		document.addEventListener("DOMContentLoaded", initializeContactFormEditor, { once: true });
+	} else {
+		initializeContactFormEditor();
+	}
+
+	function parseConfig(value) {
+		try {
+			const parsed = JSON.parse(value ?? "[]");
+			return Array.isArray(parsed) ? parsed : [];
+		} catch {
+			return [];
+		}
+	}
+
+	function parseLabelLanguages() {
+		try {
+			const parsed = JSON.parse(editor?.dataset.labelLanguages ?? "[]");
+			return Array.isArray(parsed) ? parsed : [];
+		} catch {
+			return [];
+		}
+	}
+
+	function createContactFieldRow(field = {}) {
+		const row = document.createElement("div");
+		row.className = "contact-field-row";
+		row.draggable = !isContactReadOnly;
+		row.dataset.contactField = "";
+		const assignedId = Number(field.id ?? nextFieldId + 1);
+		row.dataset.fieldId = String(assignedId);
+		nextFieldId = Math.max(nextFieldId, assignedId);
+		const type = field.type ?? "text";
+		const labelLanguages = parseLabelLanguages();
+		const labelInputs = labelLanguages
+			.map((entry, index) => {
+				const code = String(entry.code ?? "");
+				const value = escapeAttribute(field.label?.[code] ?? "");
+				return `
+					<label>
+						<span>${editor?.dataset.typeLabel ?? "Label"} (${escapeAttribute(code.toUpperCase())})</span>
+						<input
+							type="text"
+							data-contact-field-label
+							data-language-code="${escapeAttribute(code)}"
+							value="${value}"
+							${isContactReadOnly ? "disabled" : ""}
+							${index === 0 ? "required" : ""}
+						/>
+					</label>`;
+			})
+			.join("");
+		row.innerHTML = `
+			<span class="drag-handle" data-drag-handle aria-label="Drag field"></span>
+			<div class="contact-field-meta">
+				<label>
+					<span>${editor?.dataset.typeLabel ?? "Type"}</span>
+					<select data-contact-field-type ${isContactReadOnly ? "disabled" : ""}>
+						<option value="text" ${type === "text" ? "selected" : ""}>${editor?.dataset.textOption ?? "Text"}</option>
+						<option value="email" ${type === "email" ? "selected" : ""}>${editor?.dataset.emailOption ?? "Email"}</option>
+						<option value="textarea" ${type === "textarea" ? "selected" : ""}>${editor?.dataset.textareaOption ?? "Textarea"}</option>
+					</select>
+				</label>
+				<label class="contact-field-required">
+					<span>${editor?.dataset.requiredLabel ?? "Required"}</span>
+					<input type="checkbox" data-contact-field-required ${field.required ? "checked" : ""} ${isContactReadOnly ? "disabled" : ""} />
+				</label>
+				<button class="admin-ghost-button" type="button" data-contact-field-remove ${isContactReadOnly ? "disabled" : ""}>
+					${editor?.dataset.removeLabel ?? "Remove"}
+				</button>
+			</div>
+			<div class="contact-field-labels">
+				${labelInputs}
+			</div>`;
+		return row;
+	}
+
+	function syncContactFields() {
+		if (!(contactPayload instanceof HTMLInputElement) || !(contactRows instanceof HTMLElement)) {
+			return;
+		}
+		const fields = Array.from(contactRows.querySelectorAll("[data-contact-field]"))
+			.map((row, index) => {
+				const typeInput = row.querySelector("[data-contact-field-type]");
+				const requiredInput = row.querySelector("[data-contact-field-required]");
+				const labelInputs = Array.from(row.querySelectorAll("[data-contact-field-label]"));
+				const fieldId = Number(row.dataset.fieldId ?? index + 1);
+				const type = typeInput instanceof HTMLSelectElement ? typeInput.value : "text";
+				const required = requiredInput instanceof HTMLInputElement ? requiredInput.checked : false;
+				const labels = Object.fromEntries(
+					labelInputs
+						.filter((input) => input instanceof HTMLInputElement)
+						.map((input) => [input.dataset.languageCode ?? "", input.value.trim()])
+						.filter(([code, value]) => code && value),
+				);
+				return {
+					id: fieldId,
+					type,
+					label: labels,
+					required,
+					order: index + 1,
+				};
+			})
+			.filter((field) => Object.keys(field.label).length > 0);
+		contactPayload.value = JSON.stringify(fields);
+		updateEmptyState();
+	}
+
+	function updateEmptyState() {
+		if (!(contactEmptyState instanceof HTMLElement) || !(contactRows instanceof HTMLElement)) {
+			return;
+		}
+		contactEmptyState.hidden = Boolean(contactRows.querySelector("[data-contact-field]"));
+	}
+
+	function findContactRow(target) {
+		return target instanceof Element ? target.closest("[data-contact-field]") : null;
+	}
+
+	function escapeAttribute(value) {
+		return String(value)
+			.replaceAll("&", "&amp;")
+			.replaceAll("<", "&lt;")
+			.replaceAll(">", "&gt;")
+			.replaceAll('"', "&quot;")
+			.replaceAll("'", "&#39;");
+	}
+</script>

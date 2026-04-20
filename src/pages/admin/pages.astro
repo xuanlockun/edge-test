@@ -1,0 +1,150 @@
+---
+export const prerender = false;
+
+import FilterBar from "../../components/admin/FilterBar.astro";
+import CreateAction from "../../components/admin/CreateAction.astro";
+import PageTable from "../../components/admin/PageTable.astro";
+import NavigationItemsEditor from "../../components/admin/NavigationItemsEditor.astro";
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { getDb, getSiteConfig, listAllPages } from "../../lib/blog";
+import { getLanguageCatalog, getUiTranslations } from "../../lib/i18n";
+import { SITE_TITLE } from "../../consts";
+
+const session = Astro.locals.adminSession;
+if (!session) {
+	return Astro.redirect("/admin/login");
+}
+
+const canCreate = session.isSuperadmin || session.permissions.includes("pages.create");
+const canUpdate = session.isSuperadmin || session.permissions.includes("pages.update");
+const canDelete = session.isSuperadmin || session.permissions.includes("pages.delete");
+const { t, language } = getUiTranslations(Astro);
+const catalog = getLanguageCatalog(Astro.locals);
+const pageSearch = (Astro.url.searchParams.get("q") ?? "").trim();
+const pageStatusParam = (Astro.url.searchParams.get("status") ?? "all").trim();
+const pageStatus = ["all", "published", "draft"].includes(pageStatusParam) ? pageStatusParam : "all";
+
+let pages = [];
+let siteConfig = {
+	siteTitle: SITE_TITLE,
+	homePageSlug: "home",
+	faviconUrl: "/favicon.svg",
+	logoUrl: "",
+	headerBackground: "#ffffff",
+	headerTextColor: "#0f1219",
+	headerAccentColor: "#2337ff",
+	footerText: "Edge CMS. Content updates go live straight from D1.",
+	footerBackground: "#eef2f7",
+	footerTextColor: "#60739f",
+	navItems: [],
+};
+let loadError = "";
+let settingsError = "";
+
+try {
+	const db = getDb(Astro.locals);
+	pages = await listAllPages(db, language, catalog);
+	siteConfig = await getSiteConfig(db);
+} catch (error) {
+	if (!pages.length) {
+		loadError = error instanceof Error ? error.message : t("messages.failedToLoadPages");
+	} else {
+		settingsError = error instanceof Error ? error.message : t("messages.failedToLoadSiteSettings");
+	}
+}
+
+const filteredPages = pages.filter((page) => {
+	const q = pageSearch.toLowerCase();
+	const matchesSearch =
+		q === "" ||
+		[page.title, page.description, page.slug]
+			.join(" ")
+			.toLowerCase()
+			.includes(q);
+	const matchesStatus = pageStatus === "all" || page.status === pageStatus;
+	return matchesSearch && matchesStatus;
+});
+
+const hasPageFilters = Boolean(pageSearch || pageStatus !== "all");
+---
+
+<AdminLayout
+	title={t("headings.pages")}
+	description={t("messages.manageCustomPages")}
+	session={session}
+	pageTitle={t("headings.pages")}
+	pageDescription={t("messages.manageLandingPages")}
+>
+	<div slot="actions" class="admin-page-actions">
+		{canCreate && <CreateAction href="/admin/pages/new" label={t("actions.createPage")} />}
+	</div>
+
+	<div class="admin-content-stack">
+		<details class="admin-collapsible-surface admin-page-hub">
+			<summary class="admin-collapsible-summary">
+				<div class="admin-page-hub-copy">
+					<p class="text-uppercase small fw-semibold mb-1 admin-eyebrow">{t("headings.pages")}</p>
+					<h2 class="h5 mb-1">{t("messages.pageNavigationHub")}</h2>
+					<p class="mb-0 text-body-secondary small">{t("messages.pageNavigationHubHelp")}</p>
+				</div>
+				<span class="admin-collapsible-toggle" aria-hidden="true"></span>
+			</summary>
+			<div class="admin-collapsible-body">
+				{settingsError && <p class="alert alert-warning mb-3">{settingsError}</p>}
+				<form method="post" action="/api/admin/navigation" class="admin-form-shell">
+					<NavigationItemsEditor navItems={siteConfig.navItems ?? []} loadError={settingsError} />
+				</form>
+			</div>
+		</details>
+
+		<FilterBar
+			title={t("messages.pageListFilters")}
+			description="Refine the current list using one or more filters."
+			searchName="q"
+			searchValue={pageSearch}
+			searchPlaceholder={t("messages.searchPages")}
+			resetHref={hasPageFilters ? "/admin/pages" : ""}
+			submitLabel={t("actions.applyFilters")}
+			selects={[
+				{
+					name: "status",
+					label: t("labels.status"),
+					value: pageStatus,
+					options: [
+						{ value: "all", label: t("messages.allStatuses") },
+						{ value: "published", label: t("status.published") },
+						{ value: "draft", label: t("status.draft") },
+					],
+				},
+			]}
+		/>
+
+		{Astro.url.searchParams.get("created") && <p class="alert alert-success mb-0">{t("messages.pageCreated")}</p>}
+		{Astro.url.searchParams.get("saved") && <p class="alert alert-success mb-0">{t("messages.pageSaved")}</p>}
+		{Astro.url.searchParams.get("navSaved") && <p class="alert alert-success mb-0">{t("messages.navigationSaved", "Navigation saved.")}</p>}
+		{Astro.url.searchParams.get("navError") && <p class="alert alert-danger mb-0">{t("messages.navigationFailed", "Navigation could not be saved.")}</p>}
+		{Astro.url.searchParams.get("deleted") && <p class="alert alert-info mb-0">{t("messages.pageDeleted")}</p>}
+		{Astro.url.searchParams.get("error") && <p class="alert alert-danger mb-0">{t("messages.pageRequestFailed")}</p>}
+		{loadError && <p class="alert alert-danger mb-0">{loadError}</p>}
+
+		<PageTable
+			pages={filteredPages}
+			canUpdate={canUpdate}
+			canDelete={canDelete}
+			emptyTitle={hasPageFilters ? t("messages.noPagesMatchFilters") : undefined}
+			emptyDescription={hasPageFilters ? t("messages.tryAdjustPageFilters") : undefined}
+		/>
+	</div>
+</AdminLayout>
+
+<style>
+	.admin-page-hub {
+		background: #fff;
+		border-radius: 0;
+		box-shadow: none;
+	}
+
+	.admin-page-hub-copy {
+		max-width: 56rem;
+	}
+</style>

@@ -1,0 +1,12 @@
+---
+import Sidebar from "./admin/Sidebar.astro";
+import type { AdminSession } from "../lib/auth/types";
+
+interface Props {
+	session: AdminSession | null;
+}
+
+const { session } = Astro.props;
+---
+
+<Sidebar session={session} />

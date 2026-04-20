@@ -1,0 +1,59 @@
+---
+export const prerender = false;
+
+import BlogPost from '../layouts/BlogPost.astro';
+import CmsPageSections from '../components/CmsPageSections.astro';
+import { getDb, getPublishedPageBySlug, getSiteConfig } from '../lib/blog';
+import { getUiTranslations } from '../lib/i18n';
+
+let page = null;
+let config = null;
+const { language, t } = getUiTranslations(Astro);
+
+try {
+	const db = getDb(Astro.locals);
+	config = await getSiteConfig(db);
+	page = await getPublishedPageBySlug(db, config.homePageSlug);
+} catch {
+	page = null;
+}
+
+if (!page) {
+	Astro.response.status = 404;
+}
+---
+
+{
+	page ? (
+		<BlogPost
+			title={page.title}
+			description={page.description}
+			pubDate={page.updatedAt}
+			showDate={false}
+			wideContent={true}
+			showTitle={page.showTitle}
+			lang={language}
+			faviconHref={config?.faviconUrl}
+		>
+			<CmsPageSections
+				pageSections={page.pageSections}
+				contentHtml={page.contentHtml}
+				pageTemplateHtml={config?.pageTemplateHtml}
+				blogFeedTemplateHtml={config?.blogFeedTemplateHtml}
+				currentLanguage={language}
+			/>
+		</BlogPost>
+	) : (
+		<BlogPost
+			title={t("messages.homePageNotConfigured")}
+			description={t("messages.configureHomePage")}
+			pubDate={new Date()}
+			contentHtml={`<p>${t("messages.configureHomePageBody")}</p>`}
+			showDate={false}
+			wideContent={true}
+			showTitle={true}
+			lang={language}
+			faviconHref={config?.faviconUrl}
+		/>
+	)
+}

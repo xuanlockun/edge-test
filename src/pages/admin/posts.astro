@@ -1,0 +1,102 @@
+---
+export const prerender = false;
+
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import FilterBar from "../../components/admin/FilterBar.astro";
+import CreateAction from "../../components/admin/CreateAction.astro";
+import PostTable from "../../components/admin/PostTable.astro";
+import { getDb, listAllPosts, toAdminPostSummary } from "../../lib/blog";
+import { getLanguageCatalog, getUiTranslations } from "../../lib/i18n";
+
+const session = Astro.locals.adminSession;
+if (!session) {
+	return Astro.redirect("/admin/login");
+}
+
+const canCreate = session.isSuperadmin || session.permissions.includes("posts.create");
+const canUpdate = session.isSuperadmin || session.permissions.includes("posts.update");
+const canDelete = session.isSuperadmin || session.permissions.includes("posts.delete");
+const { t, language } = getUiTranslations(Astro);
+const catalog = getLanguageCatalog(Astro.locals);
+const search = (Astro.url.searchParams.get("q") ?? "").trim();
+const statusParam = (Astro.url.searchParams.get("status") ?? "all").trim();
+const status = ["all", "published", "draft"].includes(statusParam) ? statusParam : "all";
+
+let posts = [];
+let loadError = "";
+
+try {
+	posts = (await listAllPosts(getDb(Astro.locals), language, catalog)).map((post) =>
+		toAdminPostSummary(post, language, catalog),
+	);
+} catch (error) {
+	loadError = error instanceof Error ? error.message : t("messages.failedToLoadPosts");
+}
+
+const filteredPosts = posts.filter((post) => {
+	const searchValue = search.toLowerCase();
+	const matchesSearch =
+		searchValue === "" ||
+		[post.title, post.description, post.slug]
+			.join(" ")
+			.toLowerCase()
+			.includes(searchValue);
+	const matchesStatus = status === "all" || post.status === status;
+	return matchesSearch && matchesStatus;
+});
+
+const hasActiveFilters = Boolean(search || status !== "all");
+---
+
+<AdminLayout
+	title={t("headings.posts")}
+	description={t("messages.manageBlogPosts")}
+	session={session}
+	pageTitle={t("headings.posts")}
+	pageDescription={t("messages.managePublishedArticles")}
+>
+	<div slot="actions" class="admin-page-actions">
+		{canCreate && <CreateAction href="/admin/posts/new" label={t("actions.createPost")} />}
+	</div>
+
+	<div class="admin-content-stack">
+		<FilterBar
+			title="Post Filters"
+			description="Refine the current list using one or more filters."
+			searchName="q"
+			searchValue={search}
+			searchPlaceholder="Search posts"
+			resetHref={hasActiveFilters ? "/admin/posts" : ""}
+			submitLabel="Apply filters"
+			selects={[
+				{
+					name: "status",
+					label: "Status",
+					value: status,
+					options: [
+						{ value: "all", label: "All statuses" },
+						{ value: "published", label: t("status.published") },
+						{ value: "draft", label: t("status.draft") },
+					],
+				},
+			]}
+		/>
+		{Astro.url.searchParams.get("saved") && <p class="alert alert-success mb-0">{t("messages.postSaved")}</p>}
+		{Astro.url.searchParams.get("deleted") && <p class="alert alert-info mb-0">{t("messages.postDeleted")}</p>}
+		{Astro.url.searchParams.get("error") && <p class="alert alert-danger mb-0">{t("messages.requestFailed")}</p>}
+		{loadError && <p class="alert alert-danger mb-0">{loadError}</p>}
+		{hasActiveFilters && (
+			<p class="text-body-secondary small mb-0">
+				Showing {filteredPosts.length} of {posts.length} posts.
+			</p>
+		)}
+
+		<PostTable
+			posts={filteredPosts}
+			canUpdate={canUpdate}
+			canDelete={canDelete}
+			emptyTitle={hasActiveFilters ? "No posts match your filters" : undefined}
+			emptyDescription={hasActiveFilters ? "Try clearing the filters or broadening the search." : undefined}
+		/>
+	</div>
+</AdminLayout>

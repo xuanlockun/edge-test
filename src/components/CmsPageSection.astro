@@ -1,0 +1,219 @@
+---
+import { getLocalizedPostPath, type PageSectionConfig } from "../lib/blog";
+import type { BannerRecord } from "../lib/banners";
+import type { ContactFormField } from "../lib/forms";
+import type { ContactFormRecord } from "../lib/contact-forms";
+import { escapeHtml, renderBlogFeedTemplate } from "../lib/template-html";
+import BannerSection from "./BannerSection.astro";
+import DynamicForm from "./DynamicForm.astro";
+import { getLanguageCatalog, getUiTranslations } from "../lib/i18n";
+
+interface Props {
+	section: PageSectionConfig;
+	contentHtml: string;
+	pageTemplateHtml?: string;
+	blogFeedTemplateHtml?: string;
+	currentLanguage: string;
+	currentPath: string;
+	posts: Array<{
+		slugTranslations: Record<string, string>;
+		heroImage?: string | null;
+		title: string;
+		description: string;
+	}>;
+	banners: BannerRecord[];
+	contactForms: ContactFormRecord[];
+	legacyContactFields: ContactFormField[];
+}
+
+interface BannerSlide {
+	imageUrl: string;
+	title: string;
+	headline?: string;
+	caption?: string;
+	altText?: string;
+	linkUrl?: string;
+}
+
+const DEFAULT_PAGE_TEMPLATE_HTML = `<section class="page-shell">{{content}}</section>`;
+
+const {
+	section,
+	contentHtml,
+	pageTemplateHtml = "",
+	blogFeedTemplateHtml = "",
+	currentLanguage,
+	currentPath,
+	posts,
+	banners,
+	contactForms,
+	legacyContactFields,
+} = Astro.props;
+const catalog = getLanguageCatalog(Astro.locals);
+const { t } = getUiTranslations(Astro);
+const bannerSlides = resolveBannerSlides(section, banners);
+const resolvedContactForm = resolveContactForm(section, contactForms);
+const resolvedContactFields = resolvedContactForm?.fields ?? legacyContactFields;
+const resolvedContactFormTitle = resolvedContactForm?.title ?? "";
+const resolvedContactFormDescription = resolvedContactForm?.description ?? "";
+const resolvedContactFormLayout = resolvedContactForm?.layout ?? "split";
+const resolvedContactFormBackgroundStyle = resolvedContactForm?.backgroundStyle ?? "solid";
+const resolvedContactFormBackgroundColor = resolvedContactForm?.backgroundColor ?? "#f8fbff";
+const resolvedContactFormButtonColor = resolvedContactForm?.buttonColor ?? "#4f80ff";
+const resolvedContactFormId = resolvedContactForm?.id ?? 0;
+
+function resolveBannerSlides(section: PageSectionConfig, banners: BannerRecord[]): BannerSlide[] {
+	if (Array.isArray(section.bannerIds) && section.bannerIds.length > 0) {
+		const bannerMap = new Map(banners.map((banner) => [banner.id, banner] as const));
+		return section.bannerIds
+			.map((id) => bannerMap.get(id))
+			.filter((banner): banner is BannerRecord => Boolean(banner && banner.isActive))
+			.map((banner) => ({
+				imageUrl: banner.imageUrl,
+				title: banner.title,
+				headline: banner.headline,
+				caption: banner.caption,
+				altText: banner.altText || banner.title,
+				linkUrl: banner.linkUrl || undefined,
+			}));
+	}
+
+	if (Array.isArray(section.bannerUrls) && section.bannerUrls.length > 0) {
+		return section.bannerUrls.map((url, index) => ({
+			imageUrl: url,
+			title: `Banner ${index + 1}`,
+			altText: `Banner ${index + 1}`,
+		}));
+	}
+
+	return [];
+}
+
+function resolveContactForm(section: PageSectionConfig, forms: ContactFormRecord[]): ContactFormRecord | null {
+	if (typeof section.contactFormId === "number" && section.contactFormId > 0) {
+		return forms.find((form) => form.id === section.contactFormId) ?? null;
+	}
+
+	return forms[0] ?? null;
+}
+
+function renderPageTemplate(templateHtml: string, content: string): string {
+	const source = templateHtml.trim() || DEFAULT_PAGE_TEMPLATE_HTML;
+	const rendered = source.replace(/\{\{\s*content\s*\}\}/gi, content);
+	return rendered === source ? content : rendered;
+}
+
+function renderBlogFeedSection(): string {
+	const cardsHtml = posts
+		.slice(0, 6)
+		.map((post) => {
+			const href = escapeHtml(getLocalizedPostPath(post.slugTranslations, currentLanguage, catalog));
+			const title = escapeHtml(post.title);
+			const description = escapeHtml(post.description);
+			const heroImage = escapeHtml(post.heroImage || "/blog-placeholder-1.jpg");
+
+			return `<a class="col text-decoration-none" href="${href}">
+				<article class="blog-card card h-100 shadow-sm border-0 overflow-hidden">
+					<div class="post-thumbnail" style="aspect-ratio: 16 / 10;">
+						<img src="${heroImage}" class="post-image" alt="" loading="lazy" />
+					</div>
+					<div class="blog-card-body card-body post-content">
+						<h3 class="h5 card-title post-title">${title}</h3>
+						<p class="text-muted small mb-0 card-text post-excerpt">${description}</p>
+					</div>
+				</article>
+			</a>`;
+		})
+		.join("");
+
+	return renderBlogFeedTemplate(blogFeedTemplateHtml, {
+		heading: escapeHtml(t("headings.latestPosts")),
+		viewAllHref: escapeHtml("/blog"),
+		viewAllLabel: escapeHtml(t("actions.viewAll")),
+		posts: cardsHtml,
+	});
+}
+---
+
+{section.type === "page_content" && (
+	<Fragment set:html={renderPageTemplate(pageTemplateHtml, contentHtml)} />
+)}
+
+{section.type === "banner_slider" && bannerSlides.length > 0 && <BannerSection slides={bannerSlides} />}
+
+{
+	section.type === "blog_feed" && posts.length > 0 && <Fragment set:html={renderBlogFeedSection()} />
+}
+
+{
+	section.type === "contact_form" && (
+		<section class="mb-5 contact-form-section">
+			{
+				resolvedContactFormLayout === "stacked" ? (
+					<div class="mx-auto" style="max-width: 860px;">
+						<div class="text-center mb-4">
+							<p class="text-uppercase text-muted small mb-2">{t("nav.contactForm")}</p>
+							{resolvedContactFormTitle && <h2 class="display-6 fw-semibold mb-3">{resolvedContactFormTitle}</h2>}
+							{resolvedContactFormDescription && <p class="lead text-muted mb-0">{resolvedContactFormDescription}</p>}
+						</div>
+						<DynamicForm
+							fields={resolvedContactFields}
+							currentLanguage={currentLanguage}
+							sourcePath={currentPath}
+							contactFormId={resolvedContactFormId}
+							title={resolvedContactFormTitle}
+							description={resolvedContactFormDescription}
+							backgroundStyle={resolvedContactFormBackgroundStyle}
+							backgroundColor={resolvedContactFormBackgroundColor}
+							buttonColor={resolvedContactFormButtonColor}
+						/>
+					</div>
+				) : resolvedContactFormLayout === "compact" ? (
+					<div class="contact-form-compact card border-0 shadow-sm">
+						<div class="card-body p-4 p-lg-5">
+							<div class="row g-4 align-items-start">
+								<div class="col-lg-4">
+									{resolvedContactFormTitle && <h2 class="h3 mb-3">{resolvedContactFormTitle}</h2>}
+									{resolvedContactFormDescription && <p class="text-muted mb-0">{resolvedContactFormDescription}</p>}
+								</div>
+								<div class="col-lg-8">
+									<DynamicForm
+										fields={resolvedContactFields}
+										currentLanguage={currentLanguage}
+										sourcePath={currentPath}
+										contactFormId={resolvedContactFormId}
+										title={resolvedContactFormTitle}
+										description={resolvedContactFormDescription}
+										backgroundStyle={resolvedContactFormBackgroundStyle}
+										backgroundColor={resolvedContactFormBackgroundColor}
+										buttonColor={resolvedContactFormButtonColor}
+									/>
+								</div>
+							</div>
+						</div>
+					</div>
+				) : (
+					<div class="row align-items-start g-4">
+						<div class="col-lg-5">
+							{resolvedContactFormTitle && <h2 class="h3">{resolvedContactFormTitle}</h2>}
+							{resolvedContactFormDescription && <p class="text-muted mb-0">{resolvedContactFormDescription}</p>}
+						</div>
+						<div class="col-lg-7">
+							<DynamicForm
+								fields={resolvedContactFields}
+								currentLanguage={currentLanguage}
+								sourcePath={currentPath}
+								contactFormId={resolvedContactFormId}
+								title={resolvedContactFormTitle}
+								description={resolvedContactFormDescription}
+								backgroundStyle={resolvedContactFormBackgroundStyle}
+								backgroundColor={resolvedContactFormBackgroundColor}
+								buttonColor={resolvedContactFormButtonColor}
+							/>
+						</div>
+					</div>
+				)
+			}
+		</section>
+	)
+}

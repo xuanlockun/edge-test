@@ -1,0 +1,236 @@
+---
+import BaseHead from "../components/BaseHead.astro";
+import Sidebar from "../components/admin/Sidebar.astro";
+import LanguageSwitch from "../components/LanguageSwitch.astro";
+import { SITE_TITLE } from "../consts";
+import type { AdminSession } from "../lib/auth/types";
+import { getUiTranslations } from "../lib/i18n";
+
+interface Props {
+	title: string;
+	description: string;
+	session: AdminSession | null;
+	pageTitle: string;
+	pageDescription?: string;
+	pageEyebrow?: string;
+}
+
+const {
+	title,
+	description,
+	session,
+	pageTitle,
+	pageDescription,
+	pageEyebrow = "Admin",
+} = Astro.props;
+const { t, language } = getUiTranslations(Astro);
+
+const profileName = session?.displayName ?? t("messages.adminUserFallback");
+const profileEmail = session?.email ?? "";
+const profileInitials = profileName
+	.split(/\s+/)
+	.filter(Boolean)
+	.map((part) => part.charAt(0))
+	.slice(0, 2)
+	.join("")
+	.toUpperCase() || "A";
+const toggleLabel = "Toggle sidebar navigation";
+const collapseLabel = "Collapse sidebar";
+const expandLabel = "Expand sidebar";
+
+---
+
+<!doctype html>
+<html lang={language} data-theme="classic" data-mode="dark">
+	<head>
+		<BaseHead title={`${title} | ${SITE_TITLE}`} description={description} />
+	</head>
+	<body class="admin-app">
+		<script is:inline>
+			(() => {
+				try {
+					const collapsed = window.localStorage.getItem("admin-sidebar-collapsed") === "1";
+					document.body.classList.toggle("admin-sidebar-collapsed", collapsed);
+				} catch {
+					// Ignore storage access errors.
+				}
+			})();
+		</script>
+		<div class="admin-root">
+			<aside class="admin-sidebar d-none d-lg-flex">
+				<Sidebar session={session} />
+			</aside>
+			<div class="admin-workspace">
+				<header class="admin-topbar">
+					<div class="container-fluid d-flex align-items-center gap-3 px-3 px-lg-4">
+						<button
+							class="btn btn-outline-secondary admin-topbar-toggler d-lg-none"
+							type="button"
+							data-bs-toggle="offcanvas"
+							data-bs-target="#adminSidebar"
+							aria-controls="adminSidebar"
+						>
+							<span class="admin-toggler-icon" aria-hidden="true"></span>
+							<span class="visually-hidden">{toggleLabel}</span>
+						</button>
+						<button
+							class="btn btn-outline-secondary admin-sidebar-toggle d-none d-lg-inline-flex align-items-center justify-content-center"
+							type="button"
+							data-admin-sidebar-toggle
+							aria-controls="adminSidebar"
+							aria-expanded="true"
+							aria-label={collapseLabel}
+							title={collapseLabel}
+						>
+							<span class="admin-sidebar-toggle-icon admin-sidebar-toggle-icon-collapse" aria-hidden="true">
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M15 18l-6-6 6-6" />
+									<path d="M20 4v16" />
+									<path d="M9 12H4" />
+								</svg>
+							</span>
+							<span class="admin-sidebar-toggle-icon admin-sidebar-toggle-icon-expand" aria-hidden="true" hidden>
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M9 18l6-6-6-6" />
+									<path d="M4 4v16" />
+									<path d="M15 12h5" />
+								</svg>
+							</span>
+							<span class="visually-hidden admin-sidebar-toggle-label">{collapseLabel}</span>
+						</button>
+						<div class="d-flex align-items-center gap-2 ms-auto admin-topbar-actions">
+							<a href="/" class="btn btn-sm btn-outline-secondary admin-view-site" target="_blank" rel="noopener noreferrer">
+								<svg aria-hidden="true" viewBox="0 0 24 24">
+									<path
+										d="M14 3h7v7h-2V6.41l-8.29 8.3-1.42-1.42 8.3-8.29H14V3ZM5 5h6V3H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6h-2v6H5V5Z"
+									/>
+								</svg>
+								<span>View site</span>
+							</a>
+							<div class="d-none d-lg-flex align-items-center">
+								<LanguageSwitch />
+							</div>
+							<div class="dropdown">
+								<button
+									class="btn btn-sm btn-outline-secondary dropdown-toggle d-flex align-items-center gap-2 admin-user-button"
+									type="button"
+									data-bs-toggle="dropdown"
+									aria-expanded="false"
+								>
+									<span class="admin-user-avatar" aria-hidden="true">{profileInitials}</span>
+									<span class="text-start admin-user-labels">
+										<strong class="d-block">{profileName}</strong>
+										{profileEmail && <small class="text-muted">{profileEmail}</small>}
+									</span>
+								</button>
+								<ul class="dropdown-menu dropdown-menu-end shadow">
+									<li><h6 class="dropdown-header">{t("labels.user")}</h6></li>
+									{profileEmail && <li><span class="dropdown-item-text text-truncate px-3">{profileEmail}</span></li>}
+									<li><hr class="dropdown-divider" /></li>
+									<li>
+										<form method="post" action="/api/admin/auth/logout">
+											<button type="submit" class="dropdown-item text-danger">
+												{t("actions.logOut")}
+											</button>
+										</form>
+									</li>
+								</ul>
+							</div>
+						</div>
+					</div>
+				</header>
+
+				<div
+					class="offcanvas offcanvas-start admin-offcanvas d-lg-none"
+					tabindex="-1"
+					id="adminSidebar"
+					aria-labelledby="adminSidebarLabel"
+				>
+					<div class="offcanvas-header d-lg-none">
+						<h5 class="offcanvas-title" id="adminSidebarLabel">{t("app.admin")}</h5>
+						<button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+					</div>
+					<div class="offcanvas-body p-0 d-flex flex-column">
+						<Sidebar session={session} />
+					</div>
+				</div>
+
+				<main class="admin-main">
+					<div class="container-fluid px-3 px-lg-4 py-4 py-lg-4">
+						<div class="admin-page-frame">
+							<header class="admin-page-header">
+								<div class="admin-page-title">
+									<p class="admin-page-eyebrow">{pageEyebrow}</p>
+									<h1 class="admin-page-heading">{pageTitle}</h1>
+									{pageDescription && <p class="admin-page-description">{pageDescription}</p>}
+								</div>
+								<div class="admin-page-actions">
+									<slot name="actions" />
+								</div>
+							</header>
+							<div class="admin-page-content">
+								<slot />
+							</div>
+						</div>
+					</div>
+				</main>
+			</div>
+		</div>
+		<script is:inline define:vars={{ collapseLabel, expandLabel }}>
+			const sidebarToggle = document.querySelector("[data-admin-sidebar-toggle]");
+			const syncSidebarToggle = () => {
+				const isCollapsed = document.body.classList.contains("admin-sidebar-collapsed");
+				if (sidebarToggle instanceof HTMLButtonElement) {
+					sidebarToggle.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
+					sidebarToggle.title = isCollapsed ? expandLabel : collapseLabel;
+					sidebarToggle.setAttribute("aria-label", isCollapsed ? expandLabel : collapseLabel);
+					const collapseIcon = sidebarToggle.querySelector(".admin-sidebar-toggle-icon-collapse");
+					const expandIcon = sidebarToggle.querySelector(".admin-sidebar-toggle-icon-expand");
+					const label = sidebarToggle.querySelector(".admin-sidebar-toggle-label");
+					if (collapseIcon instanceof HTMLElement) {
+						collapseIcon.hidden = isCollapsed;
+					}
+					if (expandIcon instanceof HTMLElement) {
+						expandIcon.hidden = !isCollapsed;
+					}
+					if (label) {
+						label.textContent = isCollapsed ? expandLabel : collapseLabel;
+					}
+				}
+			};
+
+			sidebarToggle?.addEventListener("click", () => {
+				const isCollapsed = document.body.classList.toggle("admin-sidebar-collapsed");
+				try {
+					window.localStorage.setItem("admin-sidebar-collapsed", isCollapsed ? "1" : "0");
+				} catch {
+					// Ignore storage access errors.
+				}
+				syncSidebarToggle();
+			});
+
+			syncSidebarToggle();
+
+			document.querySelectorAll("[data-admin-sidebar-link]").forEach((link) => {
+				if (!(link instanceof HTMLAnchorElement)) {
+					return;
+				}
+
+				link.addEventListener("click", () => {
+					const offcanvas = link.closest(".offcanvas");
+					if (!(offcanvas instanceof HTMLElement)) {
+						return;
+					}
+
+					const bootstrap = window.bootstrap;
+					if (bootstrap?.Offcanvas) {
+						const instance =
+							bootstrap.Offcanvas.getInstance(offcanvas) ??
+							bootstrap.Offcanvas.getOrCreateInstance(offcanvas);
+						instance.hide();
+					}
+				});
+			});
+		</script>
+	</body>
+</html>

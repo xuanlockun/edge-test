@@ -1,0 +1,68 @@
+---
+import CreateSubmit from "./CreateSubmit.astro";
+import { getUiTranslations } from "../../lib/i18n";
+
+interface Props {
+	formMessages?: {
+		success?: string;
+		error?: string;
+	};
+	showHeader?: boolean;
+}
+
+const { formMessages = {}, showHeader = true } = Astro.props as Props;
+const { t } = getUiTranslations(Astro);
+const messages = {
+	success: formMessages.success ?? t("messages.languageCreated"),
+	error: formMessages.error ?? t("messages.languageCreateFailed"),
+};
+---
+
+<form
+	action="/api/admin/languages"
+	method="post"
+	class="admin-form-surface admin-form-shell"
+	data-language-form
+	data-message-success={messages.success}
+	data-message-error={messages.error}
+>
+	{showHeader && (
+		<div class="admin-surface-header">
+			<div>
+				<h3 class="h5 mb-1">{t("headings.languages")}</h3>
+				<p class="admin-inline-muted mb-0">{t("messages.languageCodeHelp")}</p>
+			</div>
+		</div>
+	)}
+	<div class="admin-form-grid">
+		<label>
+			<span>{t("labels.code")}</span>
+			<input
+				class="form-control"
+				id="language-code"
+				name="code"
+				type="text"
+				required
+				placeholder="en"
+				pattern="[a-z]{2}(?:-[a-z]{2})?"
+			/>
+		</label>
+		<label>
+			<span>{t("labels.name")}</span>
+			<input class="form-control" id="language-name" name="name" type="text" required />
+		</label>
+	</div>
+	<div class="admin-check-row">
+		<input class="form-check-input" type="checkbox" id="language-enabled" name="enabled" checked />
+		<label class="form-check-label mb-0" for="language-enabled">
+			{t("labels.enabled")}
+		</label>
+	</div>
+	<div class="admin-check-row">
+		<input class="form-check-input" type="checkbox" id="language-default" name="isDefault" />
+		<label class="form-check-label mb-0" for="language-default">
+			{t("actions.setDefaultLanguage")}
+		</label>
+	</div>
+	<CreateSubmit label={t("actions.createLanguage")} />
+</form>

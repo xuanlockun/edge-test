@@ -1,0 +1,51 @@
+import type { AdminPermission } from "../auth/types";
+
+export const ADMIN_PERMISSIONS: ReadonlyArray<Omit<AdminPermission, "id">> = [
+	{ name: "posts.read", label: "View posts", description: "View blog post records.", resource: "posts", action: "read" },
+	{ name: "posts.create", label: "Create posts", description: "Create blog posts.", resource: "posts", action: "create" },
+	{ name: "posts.update", label: "Edit posts", description: "Edit blog posts.", resource: "posts", action: "update" },
+	{ name: "posts.delete", label: "Delete posts", description: "Delete blog posts.", resource: "posts", action: "delete" },
+	{ name: "pages.read", label: "View pages", description: "View site page records.", resource: "pages", action: "read" },
+	{ name: "pages.create", label: "Create pages", description: "Create site pages.", resource: "pages", action: "create" },
+	{ name: "pages.update", label: "Edit pages", description: "Edit site pages.", resource: "pages", action: "update" },
+	{ name: "pages.delete", label: "Delete pages", description: "Delete site pages.", resource: "pages", action: "delete" },
+	{ name: "banners.read", label: "View banners", description: "View banner slides and their usage.", resource: "banners", action: "read" },
+	{ name: "banners.manage", label: "Manage banners", description: "Create, edit, and delete banner slides.", resource: "banners", action: "manage" },
+	{
+		name: "contactForms.read",
+		label: "View contact forms",
+		description: "View contact form libraries and submitted leads.",
+		resource: "contact_forms",
+		action: "read",
+	},
+	{
+		name: "contactForms.manage",
+		label: "Manage contact forms",
+		description: "Create, edit, and delete contact forms and their fields.",
+		resource: "contact_forms",
+		action: "manage",
+	},
+	{
+		name: "languages.manage",
+		label: "Manage languages",
+		description: "Create and edit supported site languages and translations.",
+		resource: "languages",
+		action: "manage",
+	},
+	{
+		name: "site.manage",
+		label: "Manage site settings",
+		description: "Update site-wide settings, templates, media, and navigation.",
+		resource: "site",
+		action: "manage",
+	},
+	{ name: "users.manage", label: "Manage users", description: "Create and edit admin users.", resource: "users", action: "manage" },
+	{ name: "roles.manage", label: "Manage roles", description: "Create and edit roles.", resource: "roles", action: "manage" },
+	{
+		name: "permissions.read",
+		label: "View permissions",
+		description: "View the permission catalog.",
+		resource: "permissions",
+		action: "read",
+	},
+];

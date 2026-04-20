@@ -1,0 +1,15 @@
+---
+import RoleTable from "./RoleTable.astro";
+import type { AdminPermission, AdminRole } from "../../lib/auth/types";
+
+interface Props {
+	roles: AdminRole[];
+	permissions: AdminPermission[];
+}
+
+const { roles } = Astro.props;
+---
+
+<div class="admin-table-surface">
+	<RoleTable roles={roles} />
+</div>

@@ -1,0 +1,85 @@
+---
+export const prerender = false;
+
+import PageForm from "../../../../components/admin/PageForm.astro";
+import AdminLayout from "../../../../layouts/AdminLayout.astro";
+import { getDb, getPageById } from "../../../../lib/blog";
+import { listBanners } from "../../../../lib/banners";
+import { listContactForms } from "../../../../lib/contact-forms";
+import { getLanguageCatalog, getUiTranslations, localizeAdminHref } from "../../../../lib/i18n";
+
+const session = Astro.locals.adminSession;
+if (!session) {
+	return Astro.redirect("/admin/login");
+}
+
+const canUpdate = session.isSuperadmin || session.permissions.includes("pages.update");
+const { id } = Astro.params;
+const { t, language } = getUiTranslations(Astro);
+const catalog = getLanguageCatalog(Astro.locals);
+
+let page = null;
+let bannerCatalog = [];
+let contactFormCatalog = [];
+let loadError = "";
+let notFound = false;
+
+try {
+	const pageId = Number(id);
+	if (!Number.isInteger(pageId) || pageId <= 0) {
+		notFound = true;
+	} else {
+		const db = getDb(Astro.locals);
+		page = await getPageById(db, pageId, language, catalog);
+		bannerCatalog = await listBanners(db, false, language, catalog);
+		contactFormCatalog = await listContactForms(db);
+		notFound = !page;
+	}
+} catch (error) {
+	loadError = error instanceof Error ? error.message : t("messages.failedToLoadPages");
+}
+
+if (Astro.url.searchParams.get("error")) {
+	loadError = t("messages.pageRequestFailed");
+}
+---
+
+<AdminLayout
+	title={t("actions.edit")}
+	description={t("messages.saveEditPage")}
+	session={session}
+	pageTitle={t("actions.edit")}
+	pageDescription={t("messages.editPageDescription")}
+>
+	<div class="admin-content-stack">
+		{
+			notFound ? (
+				<div class="admin-empty-state">
+					<h2>{t("messages.pageNotFound")}</h2>
+					<p class="admin-muted">{t("messages.failedToLoadPages")}</p>
+					<p>
+						<a class="btn btn-outline-secondary d-inline-flex align-items-center gap-2" href={localizeAdminHref("/admin/pages", language)}>
+							<span aria-hidden="true">
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M14 6l-6 6 6 6" />
+									<path d="M20 12H8" />
+								</svg>
+							</span>
+							{t("messages.backToPages")}
+						</a>
+					</p>
+				</div>
+			) : (
+				<PageForm
+					mode="edit"
+					action="/api/admin/pages"
+					page={page}
+					canSubmit={canUpdate}
+					loadError={loadError}
+					bannerCatalog={bannerCatalog}
+					contactFormCatalog={contactFormCatalog}
+				/>
+			)
+		}
+	</div>
+</AdminLayout>

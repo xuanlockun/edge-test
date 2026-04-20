@@ -1,0 +1,80 @@
+---
+export const prerender = false;
+
+import UserForm from "../../../../components/admin/UserForm.astro";
+import AdminLayout from "../../../../layouts/AdminLayout.astro";
+import { getAdminUserSummaryById } from "../../../../lib/db/admin-users";
+import { listRoleSummaries } from "../../../../lib/db/roles";
+import { getDb } from "../../../../lib/blog";
+import { getUiTranslations, localizeAdminHref } from "../../../../lib/i18n";
+
+const session = Astro.locals.adminSession;
+if (!session) {
+	return Astro.redirect("/admin/login");
+}
+
+const { id } = Astro.params;
+const db = getDb(Astro.locals);
+const { t, language } = getUiTranslations(Astro);
+
+let user = null;
+let loadError = "";
+let notFound = false;
+
+try {
+	const userId = Number(id);
+	if (!Number.isInteger(userId) || userId <= 0) {
+		notFound = true;
+	} else {
+		user = await getAdminUserSummaryById(db, userId);
+		notFound = !user;
+	}
+} catch (error) {
+	loadError = error instanceof Error ? error.message : t("messages.userRequestFailed");
+}
+
+const roles = await listRoleSummaries(db);
+
+if (Astro.url.searchParams.get("error")) {
+	loadError = t("messages.userRequestFailed");
+}
+---
+
+<AdminLayout
+	title={t("actions.edit")}
+	description={t("messages.saveEditUser")}
+	session={session}
+	pageTitle={t("actions.edit")}
+	pageDescription={t("messages.editUserDescription")}
+>
+	<div class="admin-content-stack">
+		{
+			notFound ? (
+				<div class="admin-empty-state">
+					<h2>{t("headings.users")}</h2>
+					<p class="admin-muted">{t("messages.userRequestFailed")}</p>
+					<p>
+						<a class="btn btn-outline-secondary d-inline-flex align-items-center gap-2" href={localizeAdminHref("/admin/users", language)}>
+							<span aria-hidden="true">
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M14 6l-6 6 6 6" />
+									<path d="M20 12H8" />
+								</svg>
+							</span>
+							{t("messages.backToUsers")}
+						</a>
+					</p>
+				</div>
+			) : (
+				<UserForm
+					mode="edit"
+					action={`/api/admin/users/${id}`}
+					user={user}
+					roles={roles}
+					canSubmit={true}
+					loadError={loadError}
+				/>
+			)
+		}
+	</div>
+</AdminLayout>

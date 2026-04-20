@@ -1,0 +1,21 @@
+---
+interface Props {
+	label: string;
+	resource?: string;
+}
+
+const { label, resource } = Astro.props;
+const badgeTheme = resource === "roles" ? "success" : resource === "users" ? "info" : resource === "site" ? "warning" : "secondary";
+---
+
+<span class={`badge permission-badge bg-${badgeTheme} text-uppercase`} data-resource={resource ?? "generic"}>
+	{label}
+</span>
+
+<style>
+	.permission-badge {
+		padding: 0.25rem 0.45rem;
+		font-size: 0.72rem;
+		line-height: 1.2;
+	}
+</style>

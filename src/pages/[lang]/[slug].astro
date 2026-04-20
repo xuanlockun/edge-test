@@ -1,0 +1,97 @@
+---
+export const prerender = false;
+
+import BlogPost from "../../layouts/BlogPost.astro";
+import CmsPageSections from "../../components/CmsPageSections.astro";
+import { getDb, getPublishedPageBySlug, getPublishedPostBySlug, getSiteConfig } from "../../lib/blog";
+import { getLanguageCatalog, getUiTranslations, isSupportedLanguage, resolveLanguage } from "../../lib/i18n";
+
+const catalog = getLanguageCatalog(Astro.locals);
+const requestedLanguage = Astro.params.lang ?? "";
+const slug = Astro.params.slug ?? "";
+const { t } = getUiTranslations(Astro);
+let config = null;
+
+if (!isSupportedLanguage(requestedLanguage, catalog)) {
+	const target = new URL(Astro.url);
+	target.pathname = `/${catalog.defaultLanguageCode}/${slug}/`;
+	return Astro.redirect(target.toString(), 301);
+}
+
+let page = null;
+let post = null;
+let loadError = "";
+
+const lang = resolveLanguage(requestedLanguage, catalog);
+
+try {
+	const db = getDb(Astro.locals);
+	config = await getSiteConfig(db);
+	page = await getPublishedPageBySlug(db, slug, lang, catalog);
+	if (!page) {
+		post = await getPublishedPostBySlug(db, slug, lang, catalog);
+	}
+} catch (error) {
+	loadError = error instanceof Error ? error.message : t("messages.failedToLoadPosts");
+}
+
+if (!page && !post && !loadError) {
+	Astro.response.status = 404;
+} else if (loadError) {
+	Astro.response.status = 503;
+}
+---
+
+{
+	page ? (
+		<BlogPost
+			title={page.title}
+			description={page.description}
+			pubDate={page.updatedAt}
+			showDate={false}
+			wideContent={true}
+			showTitle={page.showTitle}
+			lang={page.resolvedLanguage}
+			faviconHref={config?.faviconUrl}
+		>
+			<CmsPageSections
+				pageSections={page.pageSections}
+				contentHtml={page.contentHtml}
+				pageTemplateHtml={config?.pageTemplateHtml}
+				blogFeedTemplateHtml={config?.blogFeedTemplateHtml}
+				currentLanguage={lang}
+				currentPath={Astro.url.pathname}
+			/>
+		</BlogPost>
+	) : post ? (
+		<BlogPost
+			title={post.title}
+			description={post.description}
+			pubDate={post.pubDate}
+			updatedDate={post.updatedDate}
+			heroImage={post.heroImage}
+			contentHtml={post.contentHtml}
+			showTitle={true}
+			lang={post.resolvedLanguage}
+			faviconHref={config?.faviconUrl}
+		/>
+	) : (
+		<BlogPost
+			title={loadError ? t("messages.blogNotReady") : t("messages.pageNotFound")}
+			description={
+				loadError ? t("messages.blogNotReadyDescription") : t("messages.pageNotFoundDescription")
+			}
+			pubDate={new Date()}
+			contentHtml={
+				loadError
+					? `<p>${t("messages.blogNotReadyBody")}</p><p><code>${loadError}</code></p>`
+					: `<p>${t("messages.pageNotFoundBody")}</p>`
+			}
+			showDate={false}
+			wideContent={true}
+			showTitle={true}
+			lang={lang}
+			faviconHref={config?.faviconUrl}
+		/>
+	)
+}

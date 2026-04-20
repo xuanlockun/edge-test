@@ -1,0 +1,127 @@
+---
+import IconAction from "./IconAction.astro";
+import type { LanguageEntry } from "../../lib/languages";
+import { getUiTranslations } from "../../lib/i18n";
+
+interface Props {
+	languages: LanguageEntry[];
+	tableMessages?: {
+		createSuccess?: string;
+		updateSuccess?: string;
+		error?: string;
+	};
+	textActive?: string;
+	textInactive?: string;
+	textDefault?: string;
+	textSetDefault?: string;
+}
+
+const {
+	languages = [],
+	tableMessages = {},
+	textActive,
+	textInactive,
+	textDefault,
+	textSetDefault,
+} = Astro.props as Props;
+const { t } = getUiTranslations(Astro);
+const messages = {
+	createSuccess: tableMessages.createSuccess ?? t("messages.languageCreated"),
+	updateSuccess: tableMessages.updateSuccess ?? t("messages.languageSaved"),
+	error: tableMessages.error ?? t("messages.languageRequestFailed"),
+};
+const texts = {
+	active: textActive ?? t("status.active"),
+	inactive: textInactive ?? t("status.inactive"),
+	defaultLabel: textDefault ?? t("labels.default"),
+	setDefault: textSetDefault ?? t("actions.setDefaultLanguage"),
+	emptyState: t("messages.languageListEmpty"),
+};
+---
+
+<div class="admin-table-surface table-responsive w-100">
+	<table
+		class="table table-sm table-hover align-middle mb-0 w-100"
+		data-language-table
+		data-api-base="/api/admin/languages"
+		data-text-empty={texts.emptyState}
+		data-text-loading={t("messages.loadingLanguages")}
+		data-message-create-success={messages.createSuccess}
+		data-message-update-success={messages.updateSuccess}
+		data-message-error={messages.error}
+		data-text-active={texts.active}
+		data-text-inactive={texts.inactive}
+		data-text-default={texts.defaultLabel}
+		data-text-set-default={texts.setDefault}
+	>
+		<thead>
+			<tr>
+				<th scope="col">{t("labels.code")}</th>
+				<th scope="col">{t("labels.name")}</th>
+				<th scope="col">{t("labels.status")}</th>
+				<th scope="col">{t("labels.action")}</th>
+			</tr>
+		</thead>
+		<tbody>
+			{
+				languages.length === 0 ? (
+					<tr>
+						<td colspan="4" class="text-center text-muted py-4 small">
+							{texts.emptyState}
+						</td>
+					</tr>
+				) : (
+					languages.map((language) => (
+						<tr data-language-row data-language-code={language.code}>
+							<td>
+								<code>{language.code}</code>
+							</td>
+							<td>{language.name}</td>
+							<td>
+								<span
+									class:list={[
+										"badge",
+										language.isDefault ? "bg-primary" : language.enabled ? "bg-success" : "bg-secondary",
+									]}
+									data-language-status
+								>
+									{language.isDefault ? texts.defaultLabel : language.enabled ? texts.active : texts.inactive}
+								</span>
+							</td>
+							<td class="admin-action-cell">
+								<div class="admin-action-group">
+									<IconAction
+										type="button"
+										icon="toggle"
+										label={language.enabled ? "Disable language" : "Enable language"}
+										variant="btn-outline-primary"
+										attrs={{
+											"data-action": "toggle-enabled",
+											"data-code": language.code,
+											"data-enabled": String(language.enabled),
+										}}
+									/>
+									<button
+										type="button"
+										class:list={["btn", "btn-sm", "btn-outline-secondary", language.isDefault && "active"]}
+										aria-pressed={language.isDefault ? "true" : "false"}
+										data-action="set-default"
+										data-code={language.code}
+										data-default={language.isDefault}
+									>
+										{language.isDefault ? texts.defaultLabel : texts.setDefault}
+									</button>
+									<IconAction
+										href={`/admin/languages/${encodeURIComponent(language.code)}`}
+										icon="edit"
+										label={t("actions.editTranslations")}
+									/>
+								</div>
+							</td>
+						</tr>
+					))
+				)
+			}
+		</tbody>
+	</table>
+</div>

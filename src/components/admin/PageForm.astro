@@ -1,0 +1,1231 @@
+---
+import type { PageSectionConfig, SitePage } from "../../lib/blog";
+import { getSupportedLanguages, getLocalizedPagePath } from "../../lib/blog";
+import type { BannerRecord } from "../../lib/banners";
+import type { ContactFormRecord } from "../../lib/contact-forms";
+import CreateSubmit from "./CreateSubmit.astro";
+import { getLanguageCatalog, getUiTranslations, localizeAdminHref } from "../../lib/i18n";
+
+interface Props {
+	mode: "create" | "edit";
+	action: string;
+	page?: SitePage | null;
+	canSubmit: boolean;
+	backHref?: string;
+	loadError?: string;
+	bannerCatalog?: BannerRecord[];
+	contactFormCatalog?: ContactFormRecord[];
+}
+
+const {
+	mode,
+	action,
+	page = null,
+	canSubmit,
+	backHref = "/admin/pages",
+	loadError = "",
+	bannerCatalog = [],
+	contactFormCatalog = [],
+} = Astro.props;
+
+const { t, language } = getUiTranslations(Astro);
+const catalog = getLanguageCatalog(Astro.locals);
+const def = catalog.defaultLanguageCode;
+const submitLabel = mode === "edit" ? t("actions.savePage") : t("actions.createPage");
+const isDisabled = Boolean(loadError) || !canSubmit;
+const languages = getSupportedLanguages(catalog);
+const initialLanguage = page?.requestedLanguage ?? language;
+const initialShowTitle = page?.showTitle ?? true;
+const showTitleId = "page-show-title";
+const titleTranslations = {
+	[def]: "",
+	...(page?.titleTranslations ?? {}),
+};
+const contentTranslations = {
+	[def]: "# New page",
+	...(page?.contentTranslations ?? {}),
+};
+const initialSections: PageSectionConfig[] = [...(page?.pageSections ?? [])]
+	.sort((left, right) => left.order - right.order)
+	.filter((section, index, sections) => sections.findIndex((entry) => entry.type === section.type) === index);
+if (!initialSections.some((section) => section.type === "page_content")) {
+	initialSections.unshift({ type: "page_content", order: 1 });
+}
+const bannerCatalogJson = JSON.stringify(bannerCatalog);
+const contactFormCatalogJson = JSON.stringify(contactFormCatalog);
+const addSectionLabel = t("actions.addSection") ?? "Add section";
+const sectionDetailsLabel = t("labels.details") ?? "Details";
+const backIcon = `
+	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+		<path d="M14 6l-6 6 6 6" />
+		<path d="M20 12H8" />
+	</svg>
+`;
+const sectionCatalog = [
+	{
+		type: "page_content",
+		label: t("messages.pageContent") ?? "Page content",
+		description: t("messages.pageContentHelp") ?? "",
+		details: t("labels.localizedContent") ?? "Localized content",
+		removable: false,
+	},
+	{
+		type: "banner_slider",
+		label: t("messages.bannerSlider") ?? "Banner slider",
+		description: t("messages.bannerSlider") ?? "Display a rotating hero banner.",
+		details: t("labels.bannerImageUrls") ?? "Banner media",
+	},
+	{
+		type: "blog_feed",
+		label: t("messages.blogFeedGrid") ?? "Blog feed",
+		description: t("messages.latestPublishedPosts") ?? "Show the latest published posts.",
+		details: t("messages.latestPublishedPosts") ?? "Latest posts summary",
+	},
+	{
+		type: "contact_form",
+		label: t("messages.contactForm") ?? "Contact form",
+		description: t("messages.contactFormSectionHelp") ?? "Select a saved contact form.",
+		details: t("messages.contactFormSectionHelp") ?? "Select a saved contact form.",
+	},
+];
+const sectionCatalogJson = JSON.stringify(sectionCatalog);
+const sectionCatalogMap = new Map(sectionCatalog.map((entry) => [entry.type, entry]));
+const sectionRemoveLabelText = t("actions.remove");
+const initialContactFields = [];
+---
+
+<div class="admin-surface-header">
+	<a class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2" href={localizeAdminHref(backHref, language)}>
+		<span aria-hidden="true" set:html={backIcon}></span>
+		{t("actions.back")}
+	</a>
+	{!canSubmit && <p class="admin-inline-muted mb-0">{t("messages.cannotSavePage")}</p>}
+</div>
+
+{loadError && <p class="admin-notice admin-notice-error">{loadError}</p>}
+
+<form class="admin-form-shell" method="post" action={action}>
+	{mode === "edit" && page && <input type="hidden" name="id" value={page.id} />}
+	<div class="admin-form-surface">
+		<div class="admin-form-grid">
+			<label>
+				<span>{t("labels.slug")}</span>
+				<input
+					class="form-control"
+					name="slug"
+					required
+					pattern="[a-z0-9-]+"
+					value={page?.slug ?? ""}
+					placeholder="services"
+					disabled={isDisabled}
+				/>
+			</label>
+			<label>
+				<span>{t("labels.description")}</span>
+				<input
+					class="form-control"
+					name="description"
+					required
+					value={page?.description ?? ""}
+					placeholder="Page summary"
+					disabled={isDisabled}
+				/>
+			</label>
+			<div class="admin-checkbox-field">
+				<span>{t("labels.showPageTitle", "Show page title")}</span>
+				<div class="form-check form-switch">
+					<input
+						class="form-check-input"
+						type="checkbox"
+						id={showTitleId}
+						name="showTitle"
+						value="1"
+						checked={initialShowTitle}
+						disabled={isDisabled}
+					/>
+					<label class="form-check-label" for={showTitleId}>
+						{t("labels.showPageTitleHelp", "Display the page title above the content.")}
+					</label>
+				</div>
+			</div>
+			<label>
+				<span>{t("labels.status")}</span>
+				<select class="form-select" name="status" disabled={isDisabled}>
+					<option value="published" selected={page?.status !== "draft"}>{t("status.published")}</option>
+					<option value="draft" selected={page?.status === "draft"}>{t("status.draft")}</option>
+				</select>
+			</label>
+		</div>
+	</div>
+
+	<div
+		class="admin-form-section localized-editor"
+		data-localized-editor
+		data-active-language={initialLanguage}
+		data-default-language={def}
+	>
+		<div class="localized-editor-header">
+			<div>
+				<h2>{t("headings.localizedContent")}</h2>
+				<p class="admin-inline-muted mb-0">{t("messages.localizedPageHelp")}</p>
+				<p class="admin-inline-muted mb-0">
+					Use <code>::: columns</code> blocks with <code>::: column</code> to build multi-column layouts inside Markdown.
+				</p>
+			</div>
+			<div class="nav nav-pills localized-editor-tabs" role="tablist" aria-label={t("labels.language")}>
+				{
+					languages.map((languageOption) => (
+						<button
+							type="button"
+							class:list={["nav-link localized-editor-tab", initialLanguage === languageOption.code && "active"]}
+							data-language-tab={languageOption.code}
+							role="tab"
+							aria-selected={initialLanguage === languageOption.code ? "true" : "false"}
+							disabled={isDisabled}
+						>
+							{languageOption.code.toUpperCase()}
+						</button>
+					))
+				}
+			</div>
+		</div>
+
+		<input type="hidden" name="title" data-title-translations value={JSON.stringify(titleTranslations)} />
+		<input type="hidden" name="content" data-content-translations value={JSON.stringify(contentTranslations)} />
+
+		{
+			languages.map((languageOption) => (
+				<section
+					class:list={[
+						"localized-editor-panel",
+						initialLanguage === languageOption.code && "is-active",
+					]}
+					data-language-panel={languageOption.code}
+					hidden={initialLanguage !== languageOption.code}
+				>
+					<label>
+						<span>{t("labels.title")} ({languageOption.label})</span>
+						<input
+							class="form-control"
+							data-title-input={languageOption.code}
+							value={titleTranslations[languageOption.code] ?? ""}
+							placeholder={languageOption.code === def ? "About us" : languageOption.code === "vi" ? "Gioi thieu" : ""}
+							disabled={isDisabled}
+						/>
+					</label>
+					<label>
+						<span>{t("labels.content")} ({languageOption.label})</span>
+						<textarea class="form-control" data-content-input={languageOption.code} rows="14" disabled={isDisabled}
+							>{contentTranslations[languageOption.code] ?? (languageOption.code === def ? "# New page" : "")}</textarea
+						>
+					</label>
+				</section>
+			))
+		}
+	</div>
+
+	<div
+		class="admin-form-section page-sections-editor"
+	data-page-sections-editor
+	data-section-catalog={sectionCatalogJson}
+	data-banner-catalog={bannerCatalogJson}
+	data-contact-form-catalog={contactFormCatalogJson}
+	data-manage-banners-href="/admin/banners"
+	data-manage-contact-forms-href="/admin/contact-forms"
+	data-banner-section-label={t("labels.banners") ?? "Banners"}
+	data-banner-manage-label={t("actions.manage") ?? "Manage"}
+	data-banner-empty-label={t("messages.noBannersYet")}
+	data-banner-create-label={t("actions.createBanner") ?? "Create banner"}
+	data-contact-form-section-label={t("labels.contactForms") ?? "Contact forms"}
+	data-contact-form-manage-label={t("actions.manage") ?? "Manage"}
+	data-contact-form-empty-label={t("messages.noContactFormsYet") ?? "No contact forms yet"}
+	data-contact-form-create-label={t("actions.createContactForm") ?? "Create contact form"}
+	data-section-remove-label={sectionRemoveLabelText}
+	>
+		<div class="page-sections-heading">
+			<div>
+				<h2>{t("headings.pageSections")}</h2>
+				<p class="admin-inline-muted mb-0">{t("messages.pageSectionsHelp")}</p>
+			</div>
+			<div class="page-sections-actions">
+				<select class="form-select" data-section-select data-section-add-label={addSectionLabel} disabled={isDisabled}>
+					<option value="" selected disabled>{addSectionLabel}</option>
+				</select>
+				<button class="btn btn-outline-secondary btn-sm" type="button" data-section-add data-readonly={String(isDisabled)} disabled={isDisabled}>
+					{addSectionLabel}
+				</button>
+			</div>
+		</div>
+
+		<input type="hidden" name="pageSectionsConfig" data-page-sections-config value={JSON.stringify(initialSections)} />
+
+		<div class="table-responsive">
+			<table class="table admin-sections-table mb-0">
+				<thead>
+					<tr>
+						<th></th>
+						<th>{t("headings.pageSections")}</th>
+						<th>{sectionDetailsLabel}</th>
+						<th>{t("labels.action")}</th>
+					</tr>
+				</thead>
+				<tbody data-section-rows>
+					{
+						initialSections.map((section) => {
+							const metadata = sectionCatalogMap.get(section.type) ?? sectionCatalog[0];
+							const isRemovable = metadata.removable !== false;
+							const selectedBannerIds = new Set(section.bannerIds ?? []);
+							const selectedContactFormId = section.contactFormId ?? 0;
+							return (
+								<tr class="admin-table-row section-row" draggable={!isDisabled} data-section-row data-section-type={section.type}>
+									<td class="drag-cell">
+										<span class="drag-handle" data-drag-handle aria-label={metadata.label}></span>
+									</td>
+									<td>
+										<strong>{metadata.label}</strong>
+										<p class="admin-compact-copy">{metadata.description}</p>
+									</td>
+									<td class="section-control">
+										{
+											section.type === "banner_slider" ? (
+												<details class="banner-picker-panel">
+													<summary class="banner-picker-summary">
+														<div>
+															<strong>{t("labels.banners")}</strong>
+															<p class="admin-compact-copy mb-0">
+																{selectedBannerIds.size > 0
+																	? `${selectedBannerIds.size} selected`
+																	: t("messages.pageSectionsBannerHelp", "Choose one or more banners for this slider.")}
+															</p>
+														</div>
+														<span class="admin-collapsible-toggle" aria-hidden="true"></span>
+													</summary>
+													<div class="banner-picker-body">
+														<div class="banner-picker-head">
+															<a class="btn btn-outline-secondary btn-sm" href="/admin/banners">{t("actions.manage") ?? "Manage"}</a>
+														</div>
+														{
+															bannerCatalog.length > 0 ? (
+																<div class="banner-picker-grid">
+																	{bannerCatalog.map((banner) => (
+																		<label class:list={["banner-picker-card", !banner.isActive && "is-inactive"]}>
+																			<input
+																				type="checkbox"
+																				value={banner.id}
+																				data-banner-choice
+																				checked={selectedBannerIds.has(banner.id)}
+																				disabled={isDisabled}
+																			/>
+																			<span class="banner-picker-thumb">
+																				<img src={banner.imageUrl} alt={banner.altText || banner.title} loading="lazy" />
+																			</span>
+																			<span class="banner-picker-copy">
+																				<strong>{banner.title}</strong>
+																				<small class="text-muted">{banner.imageUrl}</small>
+																			</span>
+																		</label>
+																	))}
+																</div>
+															) : (
+																<p class="admin-inline-muted mb-0">
+																	{t("messages.noBannersYet")}
+																	{" "}
+																	<a href="/admin/banners/new">{t("actions.createBanner") ?? "Create banner"}</a>
+																</p>
+															)
+														}
+													</div>
+												</details>
+											) : section.type === "contact_form" ? (
+												<div class="contact-form-picker" data-contact-form-picker>
+													<div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+														<strong>{t("labels.contactForms")}</strong>
+														<a class="btn btn-outline-secondary btn-sm" href="/admin/contact-forms">{t("actions.manage") ?? "Manage"}</a>
+													</div>
+													{
+														contactFormCatalog.length > 0 ? (
+															<select class="form-select" data-contact-form-choice disabled={isDisabled}>
+																<option value="">{t("messages.selectContactForm") ?? "Choose a contact form"}</option>
+																{contactFormCatalog.map((form) => (
+																	<option value={form.id} selected={selectedContactFormId === form.id}>
+																		{form.title}
+																	</option>
+																))}
+															</select>
+														) : (
+															<p class="admin-inline-muted mb-0">
+																{t("messages.noContactFormsYet")}
+																{" "}
+																<a href="/admin/contact-forms/new">{t("actions.createContactForm") ?? "Create contact form"}</a>
+															</p>
+														)
+													}
+												</div>
+											) : (
+												<p class="admin-compact-copy">{metadata.details}</p>
+											)
+										}
+									</td>
+									<td class="section-actions">
+										{
+											isRemovable ? (
+												<button class="admin-ghost-button" type="button" data-section-remove disabled={isDisabled}>
+													{sectionRemoveLabelText}
+												</button>
+											) : (
+												<button class="admin-ghost-button" type="button" disabled>
+													{sectionRemoveLabelText}
+												</button>
+											)
+										}
+									</td>
+								</tr>
+							);
+						})
+					}
+				</tbody>
+			</table>
+		</div>
+		<p class="admin-inline-muted mb-0" data-section-empty hidden>
+			{t("messages.noPageSectionsConfigured")}
+		</p>
+	</div>
+
+	<div class="admin-form-section contact-fields-wrapper" data-contact-fields-wrapper hidden>
+		<div
+			class="contact-fields-editor"
+			data-contact-fields-editor
+			data-disabled={String(isDisabled)}
+			data-remove-label={t("actions.remove")}
+			data-type-label={t("labels.fieldType")}
+			data-required-label={t("labels.required")}
+			data-label-en={`${t("labels.label")} (EN)`}
+			data-label-vi={`${t("labels.label")} (VI)`}
+			data-text-option={t("labels.textField")}
+			data-email-option={t("labels.emailField")}
+			data-textarea-option={t("labels.textareaField")}
+		>
+			<div class="contact-fields-toolbar">
+				<strong>{t("headings.contactFormFields")}</strong>
+				<button class="btn btn-outline-secondary btn-sm" type="button" data-contact-field-add data-readonly={String(isDisabled)} disabled={isDisabled}>
+					{t("actions.addField")}
+				</button>
+			</div>
+			<p class="admin-inline-muted mb-0">{t("messages.contactFormSharedConfig")}</p>
+			<div class="contact-fields-config">
+				<div class="contact-fields-table" role="table">
+					<div class="contact-fields-header" role="row">
+						<span></span>
+						<span>{t("labels.fieldType")}</span>
+						<span>{t("labels.label")} (EN)</span>
+						<span>{t("labels.label")} (VI)</span>
+						<span>{t("labels.required")}</span>
+						<span>{t("labels.action")}</span>
+					</div>
+					<div class="contact-fields-rows" data-contact-fields-rows></div>
+				</div>
+				<p class="admin-inline-muted mb-0" data-contact-fields-empty hidden>
+					{t("messages.noContactFieldsConfigured")}
+				</p>
+			</div>
+		</div>
+	</div>
+
+	<div class="admin-form-actions">
+		{mode === "create" ? (
+			<CreateSubmit label={submitLabel} disabled={isDisabled} />
+		) : (
+			<button class="btn btn-primary" type="submit" disabled={isDisabled}>{submitLabel}</button>
+		)}
+		{mode === "edit" && page && <a class="btn btn-outline-secondary" href={getLocalizedPagePath(page.slug, language, catalog)}>{t("actions.openPage")}</a>}
+	</div>
+</form>
+
+<style>
+	.localized-editor,
+	.contact-fields-config {
+		display: grid;
+		gap: 1rem;
+	}
+
+	.localized-editor-header,
+	.contact-fields-toolbar {
+		display: flex;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+
+	.localized-editor-header h2 {
+		margin: 0;
+		font-size: 1.1rem;
+	}
+
+	.localized-editor-header p {
+		margin: 0.35rem 0 0;
+	}
+
+	.admin-sections-table {
+		width: 100%;
+		border-collapse: collapse;
+	}
+
+	.admin-sections-table th,
+	.admin-sections-table td {
+		padding: 0.45rem 0.6rem;
+		border-bottom: 1px solid rgba(var(--gray), 0.18);
+		vertical-align: top;
+	}
+
+	.admin-sections-table thead th {
+		font-size: 0.72rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--admin-muted, #60739f);
+		text-align: left;
+		padding-bottom: 0.7rem;
+	}
+
+	.admin-sections-table .section-row {
+		display: table-row;
+		background: transparent;
+		box-shadow: none;
+		border-radius: 0;
+		padding: 0;
+	}
+
+	.admin-sections-table .section-row td {
+		padding: 0.45rem 0.6rem;
+		border-bottom: 1px solid rgba(var(--gray), 0.18);
+	}
+
+	.admin-table-empty-row td {
+		padding: 1rem;
+		border: 1px dashed rgba(var(--gray), 0.3);
+		border-radius: 0;
+		background: rgba(var(--gray-light), 0.2);
+		text-align: center;
+	}
+
+	.drag-cell {
+		width: 48px;
+	}
+
+	.localized-editor-tab {
+		border-radius: 0;
+		padding: 0.3rem 0.65rem;
+		font-size: 0.8rem;
+	}
+
+	.localized-editor-panel {
+		display: grid;
+		gap: 0.8rem;
+		padding: 1rem;
+		border: 1px solid rgba(var(--gray), 0.12);
+		border-radius: 0;
+		background: rgba(var(--gray-light), 0.3);
+	}
+
+	.localized-editor-panel textarea {
+		min-height: 280px;
+	}
+
+	.page-sections-heading {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.page-sections-actions {
+		display: flex;
+		gap: 0.5rem;
+		align-items: center;
+	}
+
+	.page-sections-actions select {
+		min-width: 200px;
+	}
+
+	.banner-picker-panel {
+		display: grid;
+		gap: 0.75rem;
+		border: 1px solid rgba(var(--gray), 0.14);
+		border-radius: 0;
+		background: rgba(255, 255, 255, 0.88);
+	}
+
+	.banner-picker-panel > summary {
+		list-style: none;
+	}
+
+	.banner-picker-panel > summary::-webkit-details-marker {
+		display: none;
+	}
+
+	.banner-picker-summary {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		padding: 0.85rem 0.95rem;
+		cursor: pointer;
+	}
+
+	.banner-picker-summary strong {
+		display: block;
+		font-size: 0.95rem;
+	}
+
+	.banner-picker-body {
+		display: grid;
+		gap: 0.75rem;
+		padding: 0 0.95rem 0.95rem;
+	}
+
+	.banner-picker-head {
+		display: flex;
+		justify-content: flex-end;
+	}
+
+	.banner-picker-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+		gap: 0.65rem;
+	}
+
+	.banner-picker-card {
+		display: grid;
+		gap: 0.5rem;
+		padding: 0.55rem;
+		border: 1px solid rgba(var(--gray), 0.14);
+		border-radius: 0;
+		background: rgba(var(--gray-light), 0.18);
+		cursor: pointer;
+		min-width: 0;
+	}
+
+	.banner-picker-card input {
+		margin: 0;
+	}
+
+	.banner-picker-thumb {
+		display: block;
+		aspect-ratio: 16 / 9;
+		overflow: hidden;
+		border: 1px solid rgba(var(--gray), 0.14);
+		background: #fff;
+	}
+
+	.banner-picker-thumb img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.banner-picker-copy {
+		display: grid;
+		gap: 0.15rem;
+		min-width: 0;
+	}
+
+	.banner-picker-copy strong,
+	.banner-picker-copy small {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.contact-fields-toolbar strong {
+		font-size: 0.95rem;
+	}
+
+	@media (max-width: 720px) {
+		.localized-editor-header,
+		.contact-fields-toolbar {
+			flex-direction: column;
+			align-items: stretch;
+		}
+
+		.page-sections-heading,
+		.page-sections-actions {
+			flex-direction: column;
+			align-items: stretch;
+		}
+
+		.page-sections-actions select {
+			min-width: 0;
+			width: 100%;
+		}
+	}
+</style>
+
+<script type="module">
+	const sectionInput = document.querySelector("[data-page-sections-config]");
+	const sectionRows = document.querySelector("[data-section-rows]");
+	const sectionSelect = document.querySelector("[data-section-select]");
+	const sectionAddButton = document.querySelector("[data-section-add]");
+	const sectionEditor = document.querySelector("[data-page-sections-editor]");
+	const sectionRemoveLabel = sectionEditor?.dataset.sectionRemoveLabel ?? "Remove";
+	const bannerManageHref = sectionEditor?.dataset.manageBannersHref ?? "/admin/banners";
+	const contactManageHref = sectionEditor?.dataset.manageContactFormsHref ?? "/admin/contact-forms";
+	const bannerSectionLabel = sectionEditor?.dataset.bannerSectionLabel ?? "Banners";
+	const bannerManageLabel = sectionEditor?.dataset.bannerManageLabel ?? "Manage";
+	const bannerEmptyLabel = sectionEditor?.dataset.bannerEmptyLabel ?? "No banners yet.";
+	const bannerCreateLabel = sectionEditor?.dataset.bannerCreateLabel ?? "Create banner";
+	const contactFormSectionLabel = sectionEditor?.dataset.contactFormSectionLabel ?? "Contact forms";
+	const contactFormManageLabel = sectionEditor?.dataset.contactFormManageLabel ?? "Manage";
+	const contactFormEmptyLabel = sectionEditor?.dataset.contactFormEmptyLabel ?? "No contact forms yet.";
+	const contactFormCreateLabel = sectionEditor?.dataset.contactFormCreateLabel ?? "Create contact form";
+	const sectionEmptyState = sectionEditor?.querySelector("[data-section-empty]");
+	const sectionAddLabel = sectionSelect?.dataset.sectionAddLabel ?? "Add section";
+	const SECTION_CATALOG = parseConfig(sectionEditor?.dataset.sectionCatalog);
+	const BANNER_CATALOG = parseConfig(sectionEditor?.dataset.bannerCatalog);
+	const CONTACT_FORM_CATALOG = parseConfig(sectionEditor?.dataset.contactFormCatalog);
+	const contactWrapper = document.querySelector("[data-contact-fields-wrapper]");
+	const contactRows = document.querySelector("[data-contact-fields-rows]");
+	const contactPayload = document.querySelector("[data-contact-fields-payload]");
+	const contactEmptyState = document.querySelector("[data-contact-fields-empty]");
+	const addContactButton = document.querySelector("[data-contact-field-add]");
+	const isSectionReadOnly = sectionAddButton?.dataset.readonly === "true";
+	const isDisabled = isSectionReadOnly;
+	const isContactReadOnly = addContactButton?.dataset.readonly === "true";
+	let draggedSectionRow = null;
+	let nextFieldId = 0;
+
+	const initialContactFields = parseConfig(contactPayload?.value);
+	nextFieldId = initialContactFields.reduce((max, field) => Math.max(max, Number(field.id ?? 0)), 0);
+	initialContactFields.forEach((entry) => {
+		contactRows?.append(createContactFieldRow(entry));
+	});
+	syncContactFields();
+
+	sectionAddButton?.addEventListener("click", () => {
+		const type = sectionSelect?.value;
+		if (!type) {
+			return;
+		}
+		sectionRows?.appendChild(createSectionRow(type));
+		sectionSelect.value = "";
+		syncSections();
+	});
+
+	sectionRows?.addEventListener("click", (event) => {
+		const target = event.target;
+		if (!(target instanceof HTMLElement) || !target.matches("[data-section-remove]")) {
+			return;
+		}
+		const row = target.closest("[data-section-row]");
+		if (!row) {
+			return;
+		}
+		row.remove();
+		syncSections();
+	});
+
+	sectionRows?.addEventListener("change", (event) => {
+		const target = event.target;
+		if (!(target instanceof HTMLElement) || (!target.matches("[data-banner-choice]") && !target.matches("[data-contact-form-choice]"))) {
+			return;
+		}
+		syncSections();
+	});
+
+	sectionRows?.addEventListener("dragstart", (event) => {
+		if (isSectionReadOnly) {
+			return;
+		}
+		const row = findSectionRow(event.target);
+		if (!row || row.dataset.sectionRow === undefined) {
+			return;
+		}
+		draggedSectionRow = row;
+		row.classList.add("is-dragging");
+		event.dataTransfer?.setData("text/plain", "");
+		event.dataTransfer?.setDragImage(row, 0, 0);
+	});
+
+	sectionRows?.addEventListener("dragover", (event) => {
+		if (!draggedSectionRow) {
+			return;
+		}
+		event.preventDefault();
+		const row = findSectionRow(event.target);
+		if (!row || row === draggedSectionRow) {
+			return;
+		}
+		const bounding = row.getBoundingClientRect();
+		const after = event.clientY > bounding.top + bounding.height / 2;
+		if (after) {
+			row.after(draggedSectionRow);
+		} else {
+			row.before(draggedSectionRow);
+		}
+	});
+
+	sectionRows?.addEventListener("drop", (event) => {
+		event.preventDefault();
+		if (!draggedSectionRow) {
+			return;
+		}
+		draggedSectionRow.classList.remove("is-dragging");
+		draggedSectionRow = null;
+		syncSections();
+	});
+
+	sectionRows?.addEventListener("dragend", () => {
+		if (draggedSectionRow) {
+			draggedSectionRow.classList.remove("is-dragging");
+			draggedSectionRow = null;
+		}
+	});
+
+	syncSections();
+
+	addContactButton?.addEventListener("click", () => {
+		if (!contactRows) {
+			return;
+		}
+		contactRows.append(createContactFieldRow());
+		const lastInput = contactRows.querySelector("[data-contact-field]:last-child [data-contact-field-label-en]");
+		if (lastInput instanceof HTMLInputElement) {
+			lastInput.focus();
+		}
+		syncContactFields();
+	});
+
+	contactRows?.addEventListener("click", (event) => {
+		const target = event.target;
+		if (!(target instanceof HTMLElement) || !target.matches("[data-contact-field-remove]")) {
+			return;
+		}
+		const row = target.closest("[data-contact-field]");
+		if (row) {
+			row.remove();
+			syncContactFields();
+		}
+	});
+
+	contactRows?.addEventListener("input", syncContactFields);
+
+	let draggedContactRow = null;
+
+	contactRows?.addEventListener("dragstart", (event) => {
+		const row = findContactRow(event.target);
+		if (!row) {
+			return;
+		}
+		draggedContactRow = row;
+		row.classList.add("is-dragging");
+		event.dataTransfer?.setData("text/plain", "");
+		event.dataTransfer?.setDragImage(row, 0, 0);
+	});
+
+	contactRows?.addEventListener("dragover", (event) => {
+		if (!draggedContactRow) {
+			return;
+		}
+		event.preventDefault();
+		const row = findContactRow(event.target);
+		if (!row || row === draggedContactRow) {
+			return;
+		}
+		const bounding = row.getBoundingClientRect();
+		const after = event.clientY > bounding.top + bounding.height / 2;
+		if (after) {
+			row.after(draggedContactRow);
+		} else {
+			row.before(draggedContactRow);
+		}
+	});
+
+	contactRows?.addEventListener("drop", (event) => {
+		event.preventDefault();
+		if (!draggedContactRow) {
+			return;
+		}
+		draggedContactRow.classList.remove("is-dragging");
+		draggedContactRow = null;
+		syncContactFields();
+	});
+
+	contactRows?.addEventListener("dragend", () => {
+		if (draggedContactRow) {
+			draggedContactRow.classList.remove("is-dragging");
+			draggedContactRow = null;
+		}
+	});
+
+	function parseConfig(value) {
+		try {
+			const parsed = JSON.parse(value ?? "[]");
+			return Array.isArray(parsed) ? parsed : [];
+		} catch {
+			return [];
+		}
+	}
+
+	function renderBannerPickerHtml(selectedIds) {
+		if (!Array.isArray(BANNER_CATALOG) || BANNER_CATALOG.length === 0) {
+			return `<p class="admin-inline-muted mb-0">${escapeHtml(bannerEmptyLabel)} <a href="${escapeAttribute(bannerManageHref)}">${escapeHtml(bannerCreateLabel)}</a></p>`;
+		}
+
+		const selectedSet = new Set((selectedIds ?? []).map((id) => Number(id)));
+		return `
+			<details class="banner-picker-panel">
+				<summary class="banner-picker-summary">
+					<div>
+						<strong>${escapeHtml(bannerSectionLabel)}</strong>
+						<p class="admin-compact-copy mb-0">${selectedSet.size > 0 ? `${selectedSet.size} selected` : escapeHtml(bannerSectionLabel)}</p>
+					</div>
+					<span class="admin-collapsible-toggle" aria-hidden="true"></span>
+				</summary>
+				<div class="banner-picker-body">
+					<div class="banner-picker-head">
+						<a class="btn btn-outline-secondary btn-sm" href="${escapeAttribute(bannerManageHref)}">${escapeHtml(bannerManageLabel)}</a>
+					</div>
+					<div class="banner-picker-grid">
+						${BANNER_CATALOG.map((banner) => `
+							<label class="banner-picker-card${banner.isActive ? "" : " is-inactive"}">
+								<input type="checkbox" value="${banner.id}" data-banner-choice ${selectedSet.has(banner.id) ? "checked" : ""} ${isDisabled ? "disabled" : ""} />
+								<span class="banner-picker-thumb">
+									<img src="${escapeAttribute(banner.imageUrl)}" alt="${escapeAttribute(banner.altText || banner.title)}" loading="lazy" />
+								</span>
+								<span class="banner-picker-copy">
+									<strong>${escapeHtml(banner.title)}</strong>
+									<small class="text-muted">${escapeHtml(banner.imageUrl)}</small>
+								</span>
+							</label>
+						`).join("")}
+					</div>
+				</div>
+			</details>
+		`;
+	}
+
+	function renderContactFormPickerHtml(selectedId) {
+		if (!Array.isArray(CONTACT_FORM_CATALOG) || CONTACT_FORM_CATALOG.length === 0) {
+			return `<p class="admin-inline-muted mb-0">${escapeHtml(contactFormEmptyLabel)} <a href="${escapeAttribute(contactManageHref)}">${escapeHtml(contactFormCreateLabel)}</a></p>`;
+		}
+
+		const current = Number(selectedId ?? CONTACT_FORM_CATALOG[0]?.id ?? 0);
+		return `
+			<div class="contact-form-picker" data-contact-form-picker>
+				<div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+					<strong>${escapeHtml(contactFormSectionLabel)}</strong>
+					<a class="btn btn-outline-secondary btn-sm" href="${escapeAttribute(contactManageHref)}">${escapeHtml(contactFormManageLabel)}</a>
+				</div>
+				<select class="form-select" data-contact-form-choice ${isDisabled ? "disabled" : ""}>
+					<option value="">${escapeHtml(contactFormSectionLabel)}</option>
+					${CONTACT_FORM_CATALOG.map((form) => `
+						<option value="${form.id}" ${current === form.id ? "selected" : ""}>${escapeHtml(form.title)}</option>
+					`).join("")}
+				</select>
+			</div>
+		`;
+	}
+
+	function createSectionRow(type) {
+		const metadata = SECTION_CATALOG.find((entry) => entry.type === type) ?? SECTION_CATALOG[0];
+		const hasBanners = metadata.type === "banner_slider";
+		const hasContactForms = metadata.type === "contact_form";
+		const row = document.createElement("tr");
+		row.className = "admin-table-row section-row";
+		row.draggable = !isDisabled;
+		row.dataset.sectionRow = "";
+		row.dataset.sectionType = metadata.type;
+		const buttonMarkup =
+			metadata.removable === false
+				? `<button class="admin-ghost-button" type="button" disabled>${sectionRemoveLabel}</button>`
+				: `<button class="admin-ghost-button" type="button" data-section-remove>${sectionRemoveLabel}</button>`;
+		row.innerHTML = `
+        <td class="drag-cell">
+            <span class="drag-handle" data-drag-handle aria-label="${metadata.label}"></span>
+        </td>
+        <td>
+            <strong>${metadata.label}</strong>
+            <p class="admin-compact-copy">${metadata.description}</p>
+        </td>
+        <td class="section-control">
+            ${
+				hasBanners
+					? renderBannerPickerHtml([])
+					: hasContactForms
+						? renderContactFormPickerHtml(null)
+					: `<p class="admin-compact-copy">${metadata.details}</p>`
+			}
+        </td>
+        <td class="section-actions">${buttonMarkup}</td>`;
+		return row;
+	}
+
+	function syncSections() {
+		if (!sectionInput || !sectionRows) {
+			return;
+		}
+		const rows = Array.from(sectionRows.querySelectorAll("[data-section-row]"));
+		const payload = rows
+			.map((row, index) => {
+				const type = row.dataset.sectionType;
+				if (!type) {
+					return null;
+				}
+				const entry = { type, order: index + 1 };
+				if (type === "banner_slider") {
+					const selectedBannerIds = Array.from(row.querySelectorAll("[data-banner-choice]:checked"))
+						.map((choice) => Number(choice.value))
+						.filter((value) => Number.isFinite(value) && value > 0);
+					if (selectedBannerIds.length > 0) {
+						entry.bannerIds = selectedBannerIds;
+					}
+				}
+				if (type === "contact_form") {
+					const selectedContactForm = row.querySelector("[data-contact-form-choice]");
+					const selectedContactFormId =
+						selectedContactForm instanceof HTMLSelectElement ? Number(selectedContactForm.value) : 0;
+					if (Number.isFinite(selectedContactFormId) && selectedContactFormId > 0) {
+						entry.contactFormId = selectedContactFormId;
+					}
+				}
+				return entry;
+			})
+			.filter((entry) => Boolean(entry));
+		sectionInput.value = JSON.stringify(payload);
+		updateSectionPicker();
+		toggleContactFields(false);
+		updateSectionEmptyState();
+	}
+
+	function findSectionRow(target) {
+		return target instanceof Element ? target.closest("[data-section-row]") : null;
+	}
+
+	function findContactRow(target) {
+		return target instanceof Element ? target.closest("[data-contact-field]") : null;
+	}
+
+	function updateSectionPicker() {
+		if (!sectionSelect || !sectionRows) {
+			return;
+		}
+		const activeTypes = new Set(
+			Array.from(sectionRows.querySelectorAll("[data-section-row]")).map((row) => row.dataset.sectionType),
+		);
+		sectionSelect.innerHTML = `<option value="" disabled selected>${sectionAddLabel}</option>`;
+		SECTION_CATALOG.forEach((entry) => {
+			if (!activeTypes.has(entry.type)) {
+				const option = document.createElement("option");
+				option.value = entry.type;
+				option.textContent = entry.label;
+				sectionSelect.append(option);
+			}
+		});
+		const hasOptions = sectionSelect.querySelectorAll("option").length > 1;
+		sectionSelect.disabled = isSectionReadOnly || !hasOptions;
+		if (sectionAddButton) {
+			sectionAddButton.disabled = isSectionReadOnly || !hasOptions;
+		}
+	}
+
+	function toggleContactFields(visible) {
+		if (!contactWrapper) {
+			return;
+		}
+		contactWrapper.hidden = true;
+	}
+
+	function updateSectionEmptyState() {
+		if (!sectionEmptyState || !sectionRows) {
+			return;
+		}
+		sectionEmptyState.hidden = Boolean(sectionRows.querySelector("[data-section-row]"));
+	}
+
+	function createContactFieldRow(field = {}) {
+		const metadata = contactRows?.dataset;
+		const metaType = metadata?.typeLabel ?? "Type";
+		const metaRequired = metadata?.requiredLabel ?? "Required";
+		const metaRemove = metadata?.removeLabel ?? "Remove";
+		const metaLabelEn = metadata?.labelEn ?? "Label (EN)";
+		const metaLabelVi = metadata?.labelVi ?? "Label (VI)";
+		const metaText = metadata?.textOption ?? "Text";
+		const metaEmail = metadata?.emailOption ?? "Email";
+		const metaTextarea = metadata?.textareaOption ?? "Textarea";
+		const row = document.createElement("div");
+		row.className = "contact-field-row";
+		row.draggable = !isContactReadOnly;
+		row.dataset.contactField = "";
+		const assignedId = Number(field.id ?? nextFieldId + 1);
+		row.dataset.fieldId = String(assignedId);
+		nextFieldId = Math.max(nextFieldId, assignedId);
+		const type = field.type ?? "text";
+		const labelEn = escapeAttribute(field.label?.en ?? "");
+		const labelVi = escapeAttribute(field.label?.vi ?? "");
+		row.innerHTML = `
+        <span class="drag-handle" data-drag-handle aria-label="Drag field"></span>
+        <div class="contact-field-meta">
+            <label>
+                <span>${metaType}</span>
+                <select data-contact-field-type ${isContactReadOnly ? "disabled" : ""}>
+                    <option value="text" ${type === "text" ? "selected" : ""}>${metaText}</option>
+                    <option value="email" ${type === "email" ? "selected" : ""}>${metaEmail}</option>
+                    <option value="textarea" ${type === "textarea" ? "selected" : ""}>${metaTextarea}</option>
+                </select>
+            </label>
+            <label class="contact-field-required">
+                <span>${metaRequired}</span>
+                <input type="checkbox" data-contact-field-required ${field.required ? "checked" : ""} ${
+			isContactReadOnly ? "disabled" : ""
+		} />
+            </label>
+            <button class="admin-ghost-button" type="button" data-contact-field-remove ${isContactReadOnly ? "disabled" : ""}>
+                ${metaRemove}
+            </button>
+        </div>
+        <div class="contact-field-labels">
+            <label>
+                <span>${metaLabelEn}</span>
+                <input type="text" data-contact-field-label-en value="${labelEn}" ${
+			isContactReadOnly ? "disabled" : ""
+		} required />
+            </label>
+            <label>
+                <span>${metaLabelVi}</span>
+                <input type="text" data-contact-field-label-vi value="${labelVi}" ${
+			isContactReadOnly ? "disabled" : ""
+		} />
+            </label>
+        </div>`;
+		return row;
+	}
+
+	function syncContactFields() {
+		if (!contactPayload || !contactRows) {
+			return;
+		}
+		const fields = Array.from(contactRows.querySelectorAll("[data-contact-field]"))
+			.map((row, index) => {
+				const typeInput = row.querySelector("[data-contact-field-type]");
+				const requiredInput = row.querySelector("[data-contact-field-required]");
+				const labelEnInput = row.querySelector("[data-contact-field-label-en]");
+				const labelViInput = row.querySelector("[data-contact-field-label-vi]");
+				if (!(typeInput instanceof HTMLSelectElement) || !(labelEnInput instanceof HTMLInputElement)) {
+					return null;
+				}
+				const enValue = labelEnInput.value.trim();
+				if (!enValue) {
+					return null;
+				}
+				const viValue = labelViInput instanceof HTMLInputElement ? labelViInput.value.trim() : "";
+				return {
+					id: Number(row.dataset.fieldId) || undefined,
+					type: typeInput.value,
+					required: Boolean(requiredInput?.checked),
+					label: {
+						en: enValue,
+						...(viValue ? { vi: viValue } : {}),
+					},
+					order: index + 1,
+				};
+			})
+			.filter((field) => Boolean(field));
+
+		contactPayload.value = JSON.stringify(fields);
+		if (contactEmptyState) {
+			contactEmptyState.hidden = fields.length > 0;
+		}
+	}
+
+	function escapeAttribute(value) {
+		return (value ?? "").replace(/"/g, "&quot;");
+	}
+
+	function escapeHtml(value) {
+		return String(value ?? "")
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;")
+			.replace(/'/g, "&#39;");
+	}
+
+	const syncLocalizedEditor = (root) => {
+		if (!(root instanceof HTMLElement)) {
+			return;
+		}
+
+		const titleField = root.querySelector("[data-title-translations]");
+		const contentField = root.querySelector("[data-content-translations]");
+		if (!(titleField instanceof HTMLInputElement) || !(contentField instanceof HTMLInputElement)) {
+			return;
+		}
+
+		const titleTranslations = {};
+		const contentTranslations = {};
+
+		root.querySelectorAll("[data-title-input]").forEach((input) => {
+			if (!(input instanceof HTMLInputElement)) {
+				return;
+			}
+			const code = input.dataset.titleInput;
+			if (!code) {
+				return;
+			}
+			titleTranslations[code] = input.value;
+		});
+
+		root.querySelectorAll("[data-content-input]").forEach((input) => {
+			if (!(input instanceof HTMLTextAreaElement)) {
+				return;
+			}
+			const code = input.dataset.contentInput;
+			if (!code) {
+				return;
+			}
+			contentTranslations[code] = input.value;
+		});
+
+		titleField.value = JSON.stringify(titleTranslations);
+		contentField.value = JSON.stringify(contentTranslations);
+	};
+
+	document.querySelectorAll("[data-localized-editor]").forEach((root) => {
+		if (!(root instanceof HTMLElement)) {
+			return;
+		}
+
+		const setActiveLanguage = (languageCode) => {
+			root.dataset.activeLanguage = languageCode;
+			root.querySelectorAll("[data-language-tab]").forEach((button) => {
+				if (!(button instanceof HTMLButtonElement)) {
+					return;
+				}
+				const isActive = button.dataset.languageTab === languageCode;
+				button.classList.toggle("active", isActive);
+				button.setAttribute("aria-selected", isActive ? "true" : "false");
+			});
+			root.querySelectorAll("[data-language-panel]").forEach((panel) => {
+				if (!(panel instanceof HTMLElement)) {
+					return;
+				}
+				const isActive = panel.dataset.languagePanel === languageCode;
+				panel.hidden = !isActive;
+				panel.classList.toggle("is-active", isActive);
+			});
+		};
+
+		root.querySelectorAll("[data-language-tab]").forEach((button) => {
+			button.addEventListener("click", () => {
+				if (button instanceof HTMLButtonElement && button.dataset.languageTab) {
+					setActiveLanguage(button.dataset.languageTab);
+				}
+			});
+		});
+
+		root.addEventListener("input", () => syncLocalizedEditor(root));
+		syncLocalizedEditor(root);
+		setActiveLanguage(root.dataset.activeLanguage || root.dataset.defaultLanguage || "en");
+	});
+</script>
